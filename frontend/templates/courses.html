@@ -6,45 +6,47 @@
     <title>Available Courses</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #eef2f5;
-        }
-    </style>
+    <style>body { font-family: 'Inter', sans-serif; background-color: #eef2f5; }</style>
 </head>
 <body class="p-8">
 
     <div class="max-w-4xl mx-auto space-y-6">
         <header class="flex justify-between items-center pb-4 border-b border-gray-300">
             <h1 class="text-3xl font-extrabold text-indigo-700">Course Catalog</h1>
-            <a href="/logout" class="py-2 px-4 border border-red-500 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition duration-150">
-                Logout
-            </a>
+            
+            <div class="flex items-center space-x-6">
+                {% if user_role == 'faculty' %}
+                <a href="/faculty/upload" class="text-red-600 hover:text-red-800 font-bold hover:underline flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Upload Grades (Node 5)
+                </a>
+                {% endif %}
+
+                <a href="/my_grades" class="text-indigo-600 hover:text-indigo-900 font-medium hover:underline flex items-center">
+                    View Grades (Node 4)
+                </a>
+
+                <a href="/logout" class="py-2 px-4 border border-red-500 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition duration-150">Logout</a>
+            </div>
         </header>
 
         <div id="courseContent">
-            <h2 class="text-xl font-semibold mb-4 text-gray-800">Available Courses (Node 3)</h2>
-            <div id="messageBox" class="p-4 rounded-md hidden"></div>
+            <div id="messageBox" class="p-4 rounded-md hidden mb-4"></div>
             <div id="coursesTableContainer" class="bg-white shadow-lg rounded-lg overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrollment</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enrollment</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                         </tr>
                     </thead>
-                    <tbody id="coursesBody" class="bg-white divide-y divide-gray-200">
-                        <!-- Course Data TO BE ADDED -->
-                    </tbody>
+                    <tbody id="coursesBody" class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
-            <p id="loadingIndicator" class="text-center mt-6 text-indigo-600 font-medium">
-                Loading courses from Course Service (Node 3)...
-            </p>
+            <p id="loadingIndicator" class="text-center mt-6 text-indigo-600 font-medium">Loading Node 3...</p>
         </div>
     </div>
 
@@ -53,74 +55,64 @@
 
         async function fetchCourses() {
             const loadingIndicator = document.getElementById('loadingIndicator');
-            const messageBox = document.getElementById('messageBox');
             const coursesBody = document.getElementById('coursesBody');
-            
             loadingIndicator.classList.remove('hidden');
             coursesBody.innerHTML = '';
-            messageBox.classList.add('hidden');
-            messageBox.textContent = '';
 
             try {
                 const response = await fetch('/api/courses');
                 const data = await response.json();
 
-                if (response.ok && data.status === 'success') {
-                    renderCourses(data.courses);
+                if (response.ok) {
+                    renderCourses(data.courses, data.enrolled || []);
                 } else if (response.status === 401) {
-                    window.location.href = '/logout'; 
-                } else {
-                    throw new Error(data.message || "Failed to retrieve courses.");
+                    window.location.href = '/logout';
                 }
-
             } catch (error) {
-                console.error('Error fetching courses:', error);
-                
-                // Display error message
-                messageBox.textContent = `Error: ${error.message}. This indicates that the Course Service (Node 3) may be down, or the network link failed.`;
-                messageBox.classList.remove('hidden');
-                messageBox.classList.add('bg-red-100', 'text-red-700', 'border', 'border-red-400');
+                document.getElementById('messageBox').textContent = "Error: Course Service (Node 3) is unavailable.";
+                document.getElementById('messageBox').classList.remove('hidden');
+                document.getElementById('messageBox').classList.add('bg-red-100', 'text-red-700');
             } finally {
                 loadingIndicator.classList.add('hidden');
             }
         }
 
-        function renderCourses(courses) {
+        async function enroll(courseId) {
+            try {
+                // Add logic for proxying the enroll request in app_view.py first!
+                // For now, we will assume app_view.py acts as a generic proxy or we add the specific route.
+                // We need to add the proxy route in app_view.py for this to work.
+                const response = await fetch('/api/enroll', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ course_id: courseId })
+                });
+                const result = await response.json();
+                alert(result.message);
+                fetchCourses(); // Refresh
+            } catch (e) {
+                alert("Enrollment failed. Node 3 might be down.");
+            }
+        }
+
+        function renderCourses(courses, enrolledList) {
             const coursesBody = document.getElementById('coursesBody');
             coursesBody.innerHTML = ''; 
-
-            const courseList = Object.entries(courses).map(([code, details]) => ({ code, ...details }));
-
-            courseList.forEach(course => {
+            Object.entries(courses).forEach(([code, details]) => {
                 const row = coursesBody.insertRow();
-                row.className = 'hover:bg-gray-50 transition duration-100';
-
-                // Course Code
-                row.insertCell().textContent = course.code;
-                row.cells[0].className = 'px-6 py-4 whitespace-nowrap font-semibold text-gray-900';
-
-                // Course Name
-                row.insertCell().textContent = course.name;
-                row.cells[1].className = 'px-6 py-4 whitespace-nowrap text-gray-700';
-
-                // Status
-                const statusCell = row.insertCell();
-                const statusClass = course.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                statusCell.innerHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${course.status}</span>`;
-                statusCell.className = 'px-6 py-4 whitespace-nowrap';
-
-                // Enrollment
-                row.insertCell().textContent = `${course.enrolled}/${course.capacity}`;
-                row.cells[3].className = 'px-6 py-4 whitespace-nowrap text-gray-500';
-
-                // Placeholder
-                const actionCell = row.insertCell();
-                actionCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium';
-                if (course.status === 'Open') {
-                    actionCell.innerHTML = `<button onclick="alert('Enrollment feature coming soon!')" class="text-indigo-600 hover:text-indigo-900">Enroll</button>`;
-                } else {
-                    actionCell.textContent = 'Full';
-                }
+                const isEnrolled = enrolledList.includes(code);
+                row.innerHTML = `
+                    <td class="px-6 py-4 font-semibold">${code}</td>
+                    <td class="px-6 py-4">${details.name}</td>
+                    <td class="px-6 py-4"><span class="px-2 rounded-full ${details.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${details.status}</span></td>
+                    <td class="px-6 py-4 text-gray-500">${details.enrolled}/${details.capacity}</td>
+                    <td class="px-6 py-4">
+                        ${details.status === 'Open' && !isEnrolled
+                            ? `<button onclick="enroll('${code}')" class="text-indigo-600 font-bold hover:underline">Enroll</button>`
+                            : (isEnrolled ? '<span class="text-green-600 font-bold">Enrolled</span>' : '<span class="text-gray-400">Closed</span>')
+                        }
+                    </td>
+                `;
             });
         }
     </script>

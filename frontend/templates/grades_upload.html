@@ -1,33 +1,113 @@
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Grade Upload</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+
     <div class="w-full max-w-lg p-8 bg-white rounded-xl shadow-2xl border-t-4 border-red-600">
-        <h1 class="text-3xl font-bold text-center text-red-700">Faculty Grade Submission</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: **{{ service_name }}** (Port 5004)</p>
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-red-700">Faculty Grade Submission</h1>
+            <div class="inline-flex items-center justify-center mt-2 px-3 py-1 bg-red-50 rounded-full border border-red-100">
+                <span class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
+                <p class="text-xs text-red-600 font-medium tracking-wide uppercase">
+                    Node 5: Write Service (Port 5004)
+                </p>
+            </div>
+        </header>
         
-        <form class="mt-8 space-y-6 text-left">
+        <form id="uploadForm" class="space-y-6 text-left">
             <div>
-                <label for="course" class="block text-sm font-medium text-gray-700">Course ID</label>
-                <input type="text" id="course" value="CS101" class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                <label for="course_id" class="block text-sm font-semibold text-gray-700 mb-1">Course ID</label>
+                <input type="text" id="course_id" value="CS101" 
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition duration-200 outline-none shadow-sm"
+                       placeholder="e.g., CS101">
             </div>
 
             <div>
-                <label for="grades" class="block text-sm font-medium text-gray-700">Grades JSON Batch</label>
-                <textarea id="grades" rows="8" class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 font-mono text-xs shadow-sm" placeholder='Enter grades as a JSON array...'>
+                <label for="grades_json" class="block text-sm font-semibold text-gray-700 mb-1">
+                    Grades Batch (JSON)
+                </label>
+                <textarea id="grades_json" rows="6" 
+                          class="w-full p-3 border border-gray-300 rounded-lg font-mono text-xs bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition duration-200 outline-none shadow-sm"
+                          placeholder='[{"student_id": 101, "final_grade": "A"}]'>
 [
     {"student_id": 101, "final_grade": "A"},
-    {"student_id": 102, "final_grade": "B-"},
-    {"student_id": 103, "final_grade": "A+"}
+    {"student_id": 102, "final_grade": "B+"}
 ]
                 </textarea>
+                <p class="mt-1 text-xs text-gray-400 text-right">Ensure valid JSON format</p>
             </div>
             
-            <button type="submit" class="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-150 shadow-md hover:shadow-lg">Upload Grades</button>
+            <button type="submit" 
+                    class="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 active:bg-red-800 transition duration-150 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                Upload Grades
+            </button>
         </form>
         
-        <div class="mt-6 text-center">
-            <p class="text-xs text-gray-500 border-t pt-4">
-                The **Grades Write Service** (Node 5) is isolated from the read functionality (Node 4), ensuring that faculty can always submit grades efficiently.
-            </p>
-            <a href="/" class="mt-4 inline-block text-sm text-red-500 hover:underline font-medium">&larr; Back to Dashboard</a>
+        <div class="mt-8 text-center border-t border-gray-100 pt-6">
+            <a href="/courses" class="inline-flex items-center text-sm text-gray-500 hover:text-red-600 font-medium transition duration-150">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Back to Course Catalog
+            </a>
         </div>
     </div>
-</div>
+
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        const originalText = btn.innerText;
+        
+        // UI Loading State
+        btn.disabled = true;
+        btn.innerText = "Uploading...";
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+        try {
+            const course_id = document.getElementById('course_id').value;
+            const gradesStr = document.getElementById('grades_json').value;
+            
+            // Basic JSON validation before sending
+            let grades;
+            try {
+                grades = JSON.parse(gradesStr);
+            } catch (jsonErr) {
+                throw new Error("Invalid JSON format. Please check your syntax.");
+            }
+            
+            const response = await fetch('/api/grades/upload', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ course_id, grades })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert("✅ Success: " + result.message);
+            } else {
+                throw new Error(result.message || "Upload failed");
+            }
+        } catch (err) {
+            alert("❌ Error: " + err.message);
+        } finally {
+            // Reset UI
+            btn.disabled = false;
+            btn.innerText = originalText;
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        }
+    });
+    </script>
+</body>
+</html>

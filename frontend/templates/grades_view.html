@@ -1,12 +1,32 @@
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Grades</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
     <div class="w-full max-w-xl p-8 bg-white rounded-xl shadow-2xl border-t-4 border-blue-600">
-        <h1 class="text-3xl font-bold text-center text-blue-700">Student Grades History</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: **{{ service_name }}** (Port 5003)</p>
+        <header class="text-center border-b pb-4 mb-6">
+            <h1 class="text-3xl font-bold text-blue-700">Student Grades History</h1>
+            <p class="text-gray-500 mt-2 text-sm">Interacting with: <strong>{{ service_name }}</strong> (Port 5003)</p>
+            <div class="mt-4">
+                 <a href="/courses" class="text-sm text-blue-500 hover:underline font-medium">&larr; Back to Course Catalog</a>
+            </div>
+        </header>
         
-        <div class="mt-8 text-left">
-            <p class="font-semibold text-lg text-gray-700">User 101 Grades:</p>
-            <div class="overflow-x-auto mt-2">
-                <table class="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <div class="text-left">
+            <h3 class="font-semibold text-lg text-gray-700">Your Grades:</h3>
+            <div class="overflow-x-auto mt-4 border rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-blue-50">
                         <tr>
                             <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Course</th>
@@ -14,19 +34,58 @@
                             <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Semester</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-100">
-                        <tr><td class="px-6 py-4 whitespace-nowrap">HIST101</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-green-600">A-</td><td class="px-6 py-4 whitespace-nowrap">Fall 2023</td></tr>
-                        <tr><td class="px-6 py-4 whitespace-nowrap">CS100</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-blue-600">B+</td><td class="px-6 py-4 whitespace-nowrap">Fall 2023</td></tr>
-                        <tr><td class="px-6 py-4 whitespace-nowrap">MATH101</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-green-600">A</td><td class="px-6 py-4 whitespace-nowrap">Spring 2024</td></tr>
-                    </tbody>
+                    <tbody id="gradesBody" class="bg-white divide-y divide-gray-100">
+                         </tbody>
                 </table>
             </div>
         </div>
+
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-500 border-t pt-4">
-                If the **Grades Read Service** (Node 4) fails, students cannot view grades, but faculty can still upload new grades (Node 5).
+                If the <strong>Grades Read Service</strong> (Node 4) fails, you will see an error here, but the Course Catalog (Node 3) will still work.
             </p>
-            <a href="/" class="mt-4 inline-block text-sm text-blue-500 hover:underline font-medium">&larr; Back to Dashboard</a>
         </div>
     </div>
-</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const tbody = document.getElementById('gradesBody');
+            // Initial state while loading
+            tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Loading grades from Node 4...</td></tr>';
+
+            try {
+                // Call Node 1 Proxy (which calls Node 4)
+                const response = await fetch('/api/grades');
+                
+                if (response.status === 503) throw new Error("Grades Service Unavailable");
+                if (!response.ok) throw new Error("No grades found or Unauthorized");
+
+                const grades = await response.json();
+                
+                if (Array.isArray(grades) && grades.length > 0) {
+                    tbody.innerHTML = ''; // Clear loading
+                    grades.forEach(g => {
+                        const row = `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-gray-700 font-medium">${g.course}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center font-bold text-blue-600">${g.grade}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.semester}</td>
+                            </tr>`;
+                        tbody.innerHTML += row;
+                    });
+                } else {
+                     tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-4 text-center">No grades found.</td></tr>';
+                }
+
+            } catch (error) {
+                // Fault Tolerance Error Message
+                tbody.innerHTML = `
+                    <tr><td colspan="3" class="px-6 py-4 text-center bg-red-50">
+                        <div class="text-red-600 font-bold">⚠️ Error: ${error.message}</div>
+                        <div class="text-xs text-gray-600 mt-1">Fault Tolerance: You can still enroll in courses (Node 3).</div>
+                    </td></tr>`;
+            }
+        });
+    </script>
+</body>
+</html>
