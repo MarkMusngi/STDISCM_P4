@@ -1,0 +1,22 @@
+
+#Virtual Environment
+venv/
+.venv/
+env/
+
+#Pycache
+pycache/
+*.pyc
+*.pyd
+
+#VsCode
+.DS_Store
+.vscode/
+
+#Flask
+instance/
+.flaskenv
+
+#Database
+*.log
+*.sqlite
