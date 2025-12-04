@@ -1,33 +1,383 @@
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-lg p-8 bg-white rounded-xl shadow-2xl border-t-4 border-red-600">
-        <h1 class="text-3xl font-bold text-center text-red-700">Faculty Grade Submission</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: **{{ service_name }}** (Port 5004)</p>
-        
-        <form class="mt-8 space-y-6 text-left">
-            <div>
-                <label for="course" class="block text-sm font-medium text-gray-700">Course ID</label>
-                <input type="text" id="course" value="CS101" class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
-            </div>
-
-            <div>
-                <label for="grades" class="block text-sm font-medium text-gray-700">Grades JSON Batch</label>
-                <textarea id="grades" rows="8" class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 font-mono text-xs shadow-sm" placeholder='Enter grades as a JSON array...'>
-[
-    {"student_id": 101, "final_grade": "A"},
-    {"student_id": 102, "final_grade": "B-"},
-    {"student_id": 103, "final_grade": "A+"}
-]
-                </textarea>
-            </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Grade Upload Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md p-8 bg-white rounded-xl shadow-2xl border-t-4 border-red-600">
+            <h1 class="text-3xl font-bold text-center text-red-700">Faculty Login</h1>
+            <p class="text-center text-gray-500 mt-2 text-sm">Grade Upload Portal - Node 5 (Port 50055)</p>
             
-            <button type="submit" class="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-150 shadow-md hover:shadow-lg">Upload Grades</button>
-        </form>
-        
-        <div class="mt-6 text-center">
-            <p class="text-xs text-gray-500 border-t pt-4">
-                The **Grades Write Service** (Node 5) is isolated from the read functionality (Node 4), ensuring that faculty can always submit grades efficiently.
-            </p>
-            <a href="/" class="mt-4 inline-block text-sm text-red-500 hover:underline font-medium">&larr; Back to Dashboard</a>
+            <div id="loginMessage" class="mt-4 hidden"></div>
+            
+            <form id="loginForm" class="mt-8 space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="username" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                </div>
+                <button type="submit" 
+                        class="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-150 shadow-md">
+                    Login
+                </button>
+            </form>
+            
+            <p class="text-xs text-center text-gray-400 mt-6">Faculty Access Only</p>
         </div>
     </div>
-</div>
+
+    <!-- Main Grade Upload Screen -->
+    <div id="gradeUploadScreen" class="hidden min-h-screen p-4">
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white rounded-xl shadow-2xl border-t-4 border-red-600 p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-red-700">Faculty Grade Upload</h1>
+                        <p class="text-gray-500 text-sm mt-1">Logged in as: <strong id="facultyUsername"></strong></p>
+                        <p class="text-xs text-gray-400 mt-1">Node 5 - Faculty Grades Service (gRPC Port 50055)</p>
+                    </div>
+                    <button onclick="logout()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm">
+                        Logout
+                    </button>
+                </div>
+                
+                <div id="message" class="hidden mb-4"></div>
+                
+                <form id="gradeForm" class="space-y-6">
+                    <!-- Student Selection -->
+                    <div>
+                        <label for="studentSelect" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select Student
+                        </label>
+                        <select id="studentSelect" required 
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                            <option value="">-- Loading students... --</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Select the student you want to assign a grade to</p>
+                    </div>
+
+                    <!-- Course Selection (Enrolled Courses Only) -->
+                    <div>
+                        <label for="courseSelect" class="block text-sm font-medium text-gray-700 mb-2">
+                            Select Course <span class="text-red-500">*</span>
+                        </label>
+                        <select id="courseSelect" required disabled
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm disabled:bg-gray-100">
+                            <option value="">-- Select a student first --</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Only courses the student is enrolled in will appear</p>
+                    </div>
+
+                    <!-- Grade Selection -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="grade" class="block text-sm font-medium text-gray-700 mb-2">
+                                Grade <span class="text-red-500">*</span>
+                            </label>
+                            <select id="grade" required 
+                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                                <option value="">-- Select Grade --</option>
+                                <option value="A+">A+ (Excellent)</option>
+                                <option value="A">A (Very Good)</option>
+                                <option value="A-">A- (Good)</option>
+                                <option value="B+">B+</option>
+                                <option value="B">B (Above Average)</option>
+                                <option value="B-">B-</option>
+                                <option value="C+">C+</option>
+                                <option value="C">C (Average)</option>
+                                <option value="C-">C-</option>
+                                <option value="D">D (Passing)</option>
+                                <option value="F">F (Failing)</option>
+                                <option value="INC">INC (Incomplete)</option>
+                                <option value="DRP">DRP (Dropped)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="semester" class="block text-sm font-medium text-gray-700 mb-2">
+                                Semester <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="semester" value="Fall 2024" required
+                                   placeholder="e.g., Fall 2024"
+                                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- Remarks -->
+                    <div>
+                        <label for="remarks" class="block text-sm font-medium text-gray-700 mb-2">
+                            Remarks / Comments (Optional)
+                        </label>
+                        <textarea id="remarks" rows="3" 
+                                  class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm font-mono text-sm"
+                                  placeholder="Add any additional comments about student performance..."></textarea>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" id="submitBtn"
+                            class="w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-150 shadow-md hover:shadow-lg">
+                        Upload Grade via gRPC
+                    </button>
+                </form>
+                
+                <!-- Info Footer -->
+                <div class="mt-6 text-center">
+                    <p class="text-xs text-gray-500 border-t pt-4">
+                        <strong>Grades Write Service (Node 5)</strong> is isolated from the read functionality (Node 4), 
+                        ensuring faculty can always submit grades efficiently. All operations via gRPC.
+                    </p>
+                    <a href="/" class="mt-4 inline-block text-sm text-red-500 hover:underline font-medium">
+                        &larr; Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:5001/api/v1';
+        let authToken = '';
+        let currentUsername = '';
+
+        // Login handling
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('loginMessage');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    // Check if user is faculty
+                    if (data.role !== 'faculty') {
+                        showLoginMessage('Access denied. This portal is for faculty only.', 'error');
+                        return;
+                    }
+                    
+                    authToken = data.token;
+                    currentUsername = username;
+                    
+                    showLoginMessage('Login successful! Loading grade upload portal...', 'success');
+                    
+                    setTimeout(() => {
+                        document.getElementById('loginScreen').classList.add('hidden');
+                        document.getElementById('gradeUploadScreen').classList.remove('hidden');
+                        document.getElementById('facultyUsername').textContent = currentUsername;
+                        loadStudents();
+                    }, 1000);
+                } else {
+                    showLoginMessage(data.message || 'Login failed', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showLoginMessage('Connection error. Is the REST Gateway running on port 5001?', 'error');
+            }
+        });
+
+        function showLoginMessage(text, type) {
+            const messageDiv = document.getElementById('loginMessage');
+            messageDiv.className = `mt-4 p-3 rounded-lg ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            messageDiv.textContent = text;
+            messageDiv.classList.remove('hidden');
+        }
+
+        // Load all students
+        async function loadStudents() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/faculty/students`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const select = document.getElementById('studentSelect');
+                    select.innerHTML = '<option value="">-- Select a student --</option>';
+                    
+                    data.students.forEach(student => {
+                        const option = document.createElement('option');
+                        option.value = student.student_id;
+                        option.textContent = student.username;
+                        select.appendChild(option);
+                    });
+                } else {
+                    showMessage('Failed to load students: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                showMessage('Failed to load students. Faculty Grades Service (Port 50055) may be unavailable.', 'error');
+            }
+        }
+
+        // When student is selected, load their enrolled courses
+        document.getElementById('studentSelect').addEventListener('change', async (e) => {
+            const studentId = e.target.value;
+            const courseSelect = document.getElementById('courseSelect');
+            
+            if (!studentId) {
+                courseSelect.innerHTML = '<option value="">-- Select a student first --</option>';
+                courseSelect.disabled = true;
+                return;
+            }
+            
+            // Show loading state
+            courseSelect.disabled = true;
+            courseSelect.innerHTML = '<option value="">-- Loading enrolled courses... --</option>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/faculty/students/${studentId}/enrollments`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    if (data.enrollments.length === 0) {
+                        courseSelect.innerHTML = '<option value="">-- Student not enrolled in any courses --</option>';
+                        showMessage('This student is not enrolled in any courses yet.', 'warning');
+                    } else {
+                        courseSelect.innerHTML = '<option value="">-- Select a course --</option>';
+                        data.enrollments.forEach(enrollment => {
+                            const option = document.createElement('option');
+                            option.value = enrollment.course_id;
+                            option.textContent = `${enrollment.course_id} - ${enrollment.course_name}`;
+                            courseSelect.appendChild(option);
+                        });
+                        courseSelect.disabled = false;
+                    }
+                } else {
+                    courseSelect.innerHTML = '<option value="">-- Error loading courses --</option>';
+                    showMessage('Failed to load enrollments: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading enrollments:', error);
+                courseSelect.innerHTML = '<option value="">-- Error loading courses --</option>';
+                showMessage('Failed to load student enrollments. Service may be unavailable.', 'error');
+            }
+        });
+
+        // Handle grade submission
+        document.getElementById('gradeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const studentId = document.getElementById('studentSelect').value;
+            const studentName = document.getElementById('studentSelect').options[document.getElementById('studentSelect').selectedIndex].text;
+            const courseId = document.getElementById('courseSelect').value;
+            const courseName = document.getElementById('courseSelect').options[document.getElementById('courseSelect').selectedIndex].text;
+            const grade = document.getElementById('grade').value;
+            const semester = document.getElementById('semester').value;
+            const remarks = document.getElementById('remarks').value;
+            
+            if (!studentId || !courseId || !grade || !semester) {
+                showMessage('Please fill in all required fields.', 'error');
+                return;
+            }
+            
+            // Disable submit button during upload
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Uploading via gRPC...';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/faculty/grades/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        course_id: courseId,
+                        grade: grade,
+                        semester: semester,
+                        remarks: remarks
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    showMessage(
+                        `✓ Grade ${grade} successfully uploaded for ${studentName} in ${courseName}`, 
+                        'success'
+                    );
+                    
+                    // Reset form
+                    document.getElementById('gradeForm').reset();
+                    document.getElementById('courseSelect').disabled = true;
+                    document.getElementById('courseSelect').innerHTML = '<option value="">-- Select a student first --</option>';
+                    document.getElementById('semester').value = 'Fall 2024';
+                    
+                    // Reload students to refresh
+                    loadStudents();
+                } else {
+                    showMessage('Failed to upload grade: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error uploading grade:', error);
+                showMessage('Failed to upload grade. Faculty Grades service (Port 50055) may be unavailable.', 'error');
+            } finally {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Upload Grade via gRPC';
+            }
+        });
+
+        // Show message helper
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            
+            if (type === 'success') {
+                messageDiv.className = 'p-4 rounded-lg bg-green-100 text-green-800 border border-green-200 mb-4';
+            } else if (type === 'warning') {
+                messageDiv.className = 'p-4 rounded-lg bg-yellow-100 text-yellow-800 border border-yellow-200 mb-4';
+            } else {
+                messageDiv.className = 'p-4 rounded-lg bg-red-100 text-red-800 border border-red-200 mb-4';
+            }
+            
+            messageDiv.textContent = text;
+            messageDiv.classList.remove('hidden');
+            
+            // Auto-hide after 5 seconds for success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                authToken = '';
+                currentUsername = '';
+                document.getElementById('gradeUploadScreen').classList.add('hidden');
+                document.getElementById('loginScreen').classList.remove('hidden');
+                document.getElementById('loginForm').reset();
+                document.getElementById('loginMessage').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

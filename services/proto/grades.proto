@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package grades;
+
+// Grades Service Definition
+service GradesService {
+    // Get student's enrolled courses with grades
+    rpc GetEnrolledCoursesWithGrades(EnrolledCoursesWithGradesRequest) returns (EnrolledCoursesWithGradesResponse);
+    
+    // Get student's grades (Read operation)
+    rpc GetStudentGrades(GradesRequest) returns (GradesResponse);
+    
+    // Upload grades for a course (Write operation - Faculty only)
+    rpc UploadGrade(UploadGradeRequest) returns (UploadGradeResponse);
+    
+    // Get all grades for a specific course (Faculty view)
+    rpc GetCourseGrades(CourseGradesRequest) returns (CourseGradesResponse);
+}
+
+// Request Messages
+message GradesRequest {
+    string token = 1;  // JWT token to identify student
+}
+
+message EnrolledCoursesWithGradesRequest {
+    string token = 1;  // JWT token to identify student
+}
+
+message UploadGradeRequest {
+    string token = 1;           // Faculty JWT token
+    string student_id = 2;      // Student's public_id
+    string course_id = 3;       // Course identifier
+    string grade = 4;           // Letter grade (A, A-, B+, etc.)
+    string semester = 5;        // e.g., "Fall 2024"
+    string remarks = 6;         // Optional comments
+}
+
+message CourseGradesRequest {
+    string token = 1;       // Faculty JWT token
+    string course_id = 2;   // Course to view grades for
+}
+
+// Response Messages
+message CourseGradeInfo {
+    string course_id = 1;
+    string course_name = 2;
+    string enrollment_date = 3;
+    bool grade_released = 4;      // Whether grade is available
+    string grade = 5;              // Letter grade or empty if not released
+    string semester = 6;
+    string date_posted = 7;        // When grade was posted
+    string remarks = 8;
+}
+
+message EnrolledCoursesWithGradesResponse {
+    string status = 1;
+    string message = 2;
+    repeated CourseGradeInfo courses = 3;
+    string student_name = 4;
+}
+
+message GradeInfo {
+    string grade_id = 1;
+    string course_id = 2;
+    string course_name = 3;
+    string grade = 4;
+    string semester = 5;
+    string date_posted = 6;
+    string remarks = 7;
+}
+
+message GradesResponse {
+    string status = 1;
+    string message = 2;
+    repeated GradeInfo grades = 3;
+    string student_name = 4;
+}
+
+message UploadGradeResponse {
+    string status = 1;
+    string message = 2;
+    string grade_id = 3;
+}
+
+message StudentGradeInfo {
+    string student_id = 1;
+    string student_name = 2;
+    string grade = 3;
+    string date_posted = 4;
+}
+
+message CourseGradesResponse {
+    string status = 1;
+    string message = 2;
+    string course_id = 3;
+    string course_name = 4;
+    repeated StudentGradeInfo student_grades = 5;
+}

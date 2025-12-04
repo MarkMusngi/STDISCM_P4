@@ -1,17 +1,23 @@
 <!doctype html>
+
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Course Catalog</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
+
 <body class="bg-gray-50">
 
 <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
   <div class="w-full max-w-3xl p-8 bg-white rounded-xl shadow-2xl border-t-4 border-green-600">
+
     <h1 class="text-3xl font-bold text-center text-green-700">Course Catalog</h1>
+
     <p id="serviceInfo" class="text-center text-gray-500 mt-2 text-sm">
       Catalog View: <strong id="serviceName">Course View (Port 5002)</strong> | Enrollment Action: <strong>Enrollment Service (Port 5003)</strong>
     </p>
@@ -21,31 +27,29 @@
     <div class="mt-8 text-left space-y-4">
       <p class="font-semibold text-lg text-gray-700">Available Courses:</p>
 
-      <!-- Separate containers for states -->
       <div id="courseListContainer" class="overflow-hidden border border-gray-200 rounded-xl">
         <div id="loadingState" class="p-6 text-center text-gray-500">Loading courses...</div>
         <div id="errorState" class="p-6 text-center text-red-500 font-semibold hidden">
           Error loading courses. Course Service (Port 5002) may be down or the database is unavailable.
         </div>
-
-        <!-- Table container where rows will be injected -->
         <div id="coursesTable" class="p-6"></div>
       </div>
 
+      <!-- NEW HOME BUTTON -->
       <div class="flex justify-end pt-4">
-        <button id="logoutButton" onclick="logout()" class="text-sm font-medium text-red-600 hover:text-red-800 transition duration-150 hidden">
-          Logout
+        <button onclick="window.location.href='/'" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition duration-150">
+          Back to Home
         </button>
       </div>
+
     </div>
   </div>
 </div>
 
 <script>
-  // --- Service URLs ---
+
   const courseServiceUrl = 'http://localhost:5001/api/v1/courses';
 
-  // --- Helpers ---
   function getToken() { return localStorage.getItem('user_jwt_token'); }
   function getRole() { return localStorage.getItem('user_role'); }
   function getUserId() { return localStorage.getItem('user_id'); }
@@ -66,21 +70,8 @@
     el.textContent = '';
   }
 
-  function logout() {
-    localStorage.removeItem('user_jwt_token');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('user_role');
-    hideStatus();
-    window.location.href = '/auth.html';
-  }
+  // removed logout button logic completely
 
-  function updateLogoutButtonVisibility() {
-    const token = getToken();
-    const logoutButton = document.getElementById('logoutButton');
-    if (token) logoutButton.classList.remove('hidden'); else logoutButton.classList.add('hidden');
-  }
-
-  // --- Redirect to enrollment page ---
   function redirectToEnroll(courseId) {
     const token = getToken();
     const userRole = getRole();
@@ -98,11 +89,9 @@
       return;
     }
 
-    // Redirect to enrollment page with just course_id - user info comes from localStorage
     window.location.href = `/enroll?course_id=${encodeURIComponent(courseId)}`;
   }
 
-  // --- Fetch and render courses ---
   async function fetchCourses() {
     const loadingEl = document.getElementById('loadingState');
     const errorEl = document.getElementById('errorState');
@@ -112,15 +101,14 @@
     errorEl.classList.add('hidden');
     tableContainer.innerHTML = '';
 
-    updateLogoutButtonVisibility();
     hideStatus();
 
     try {
       const res = await fetch(courseServiceUrl, { method: 'GET' });
+
       if (!res.ok) {
         loadingEl.classList.add('hidden');
         errorEl.classList.remove('hidden');
-
         let payload;
         try { payload = await res.json(); } catch (_) { payload = { message: res.statusText }; }
         showStatus(`Failed to fetch catalog (Node 3): ${payload.message || res.statusText}`, 'error');
@@ -135,7 +123,6 @@
         return;
       }
 
-      // Build table
       let html = `
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
@@ -154,17 +141,21 @@
       const token = getToken();
 
       for (const [id, course] of Object.entries(courses)) {
-        const isFull = (course.enrolled >= course.capacity);
+        const isFull = course.enrolled >= course.capacity;
         const isAvailable = course.open && !isFull;
+
         const statusText = isFull ? 'FULL' : (course.open ? 'OPEN' : 'CLOSED');
-        const statusColor = isFull ? 'bg-red-100 text-red-800' : (course.open ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800');
+        const statusColor = isFull ? 'bg-red-100 text-red-800'
+                                  : (course.open ? 'bg-green-100 text-green-800'
+                                                 : 'bg-yellow-100 text-yellow-800');
 
         let actionButton = '';
+
         if (token && userRole === 'student') {
           if (isAvailable) {
             actionButton = `<button onclick="redirectToEnroll('${id}')" class="py-1 px-3 rounded-full text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Enroll</button>`;
           } else {
-            actionButton = `<button disabled class="py-1 px-3 rounded-full text-sm font-medium text-gray-500 bg-gray-100 cursor-not-allowed">${statusText}</button>`;
+            actionButton = `<button disabled class="py-1 px-3 rounded-full text-sm font-medium bg-gray-100 text-gray-500 cursor-not-allowed">${statusText}</button>`;
           }
         } else if (token && userRole === 'faculty') {
           actionButton = `<a href="/faculty/upload?course_id=${encodeURIComponent(id)}" class="text-sm text-blue-600 hover:underline">Grade Upload</a>`;
@@ -174,15 +165,11 @@
 
         html += `
           <tr id="course-row-${id}">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${id}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.name}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.enrolled}/${course.capacity}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-center">
-              <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${statusText}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-              ${actionButton}
-            </td>
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${id}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${course.name}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${course.enrolled}/${course.capacity}</td>
+            <td class="px-6 py-4 text-center"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${statusText}</span></td>
+            <td class="px-6 py-4 text-center text-sm font-medium">${actionButton}</td>
           </tr>
         `;
       }
@@ -203,6 +190,7 @@
     document.getElementById('serviceName').textContent = 'Course View (Port 5002)';
     fetchCourses();
   });
+
 </script>
 
 </body>

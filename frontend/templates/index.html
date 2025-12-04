@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Distributed Enrollment System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../static/main.css"> <!-- Reference to static CSS file -->
     <style>
         @layer base { body { font-family: 'Inter', sans-serif; } }
         .service-card { transition: all 0.3s ease; }
@@ -13,26 +12,40 @@
     </style>
 </head>
 <body class="bg-gray-50 p-8">
+    <!-- Logout Button (Top Right) -->
+    <div class="fixed top-4 right-4 z-50">
+        <div class="bg-white rounded-lg shadow-md px-4 py-2 flex items-center space-x-3">
+            <div class="text-right">
+                <p class="text-xs text-gray-500">Logged in as</p>
+                <p class="text-sm font-semibold text-gray-800">{{ username }}</p>
+                <p class="text-xs text-indigo-600">{{ role|title }}</p>
+            </div>
+            <a href="/logout" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-medium">
+                Logout
+            </a>
+        </div>
+    </div>
+
     <div class="max-w-4xl mx-auto">
         <header class="text-center py-8 bg-white shadow-xl rounded-xl mb-10 border-b-4 border-gray-200">
             <h1 class="text-3xl font-extrabold text-indigo-700">Student/Faculty Portal Dashboard</h1>
             <p class="mt-2 text-gray-500">Five Microservices running independently for **Fault Tolerance**</p>
         </header>
 
-        <!-- CHANGE: Updated lg:grid-cols-3 to lg:grid-cols-2 for a more balanced 2-2-1 layout for 5 cards -->
         <main class="grid md:grid-cols-2 lg:grid-cols-2 gap-6"> 
             <!-- Node 1: Auth Service (Port 5001) -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-indigo-500">
-                <h2 class="text-xl font-semibold text-gray-800">Login/Session (Node 1: 5001)</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Login/Session (Node 1: 50051)</h2>
                 <p class="mt-2 text-gray-600 text-sm">Handles user authentication (JWT/OAuth) and session tracking across all nodes.</p>
-                <a href="/login" class="mt-4 inline-block text-indigo-600 hover:text-indigo-800 font-medium">
-                    Go to Login &rarr;
-                </a>
+                <div class="mt-4 flex items-center">
+                    <span class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                    <span class="text-sm text-green-600 font-medium">Active Session</span>
+                </div>
             </div>
 
             <!-- Node 2: Course Catalog Service (Port 5002) -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-green-500">
-                <h2 class="text-xl font-semibold text-gray-800">Course Catalog (Node 2: 5002)</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Course Catalog (Node 2: 50052)</h2>
                 <p class="mt-2 text-gray-600 text-sm">Manages course availability and static catalog viewing (Read optimized).</p>
                 <a href="/courses" class="mt-4 inline-block text-green-600 hover:text-green-800 font-medium">
                     View Courses &rarr;
@@ -41,7 +54,7 @@
             
             <!-- Node 3: Enrollment Processor (Port 5003) -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-orange-500">
-                <h2 class="text-xl font-semibold text-gray-800">Enrollment Processor (Node 3: 5003)</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Enrollment Processor (Node 3: 50053)</h2>
                 <p class="mt-2 text-gray-600 text-sm">Dedicated service for transactional student registration (Write optimized).</p>
                 <a href="/enroll" class="mt-4 inline-block text-orange-600 hover:text-orange-800 font-medium">
                     Enroll in Courses &rarr;
@@ -50,7 +63,7 @@
 
             <!-- Node 4: Grades Read Service -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-blue-500">
-                <h2 class="text-xl font-semibold text-gray-800">View Grades (Node 4: 5003)</h2>
+                <h2 class="text-xl font-semibold text-gray-800">View Grades (Node 4: 50054)</h2>
                 <p class="mt-2 text-gray-600 text-sm">Provides read-only access to historical student performance data (High availability).</p>
                 <a href="/my_grades" class="mt-4 inline-block text-blue-600 hover:text-blue-800 font-medium">
                     Check My Grades &rarr;
@@ -59,18 +72,21 @@
 
             <!-- Node 5: Grades Write Service -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-red-500">
-                <h2 class="text-xl font-semibold text-gray-800">Faculty Upload (Node 5: 5004)</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Faculty Upload (Node 5: 50055)</h2>
                 <p class="mt-2 text-gray-600 text-sm">Secured endpoint for faculty to submit and update course grades (Isolated writes).</p>
+                {% if role == 'faculty' %}
                 <a href="/faculty/upload" class="mt-4 inline-block text-red-600 hover:text-red-800 font-medium">
                     Upload Grades (Faculty) &rarr;
                 </a>
+                {% else %}
+                <p class="mt-4 text-sm text-gray-400 italic">Faculty access only</p>
+                {% endif %}
             </div>
             
-            <!-- CHANGE: Updated lg:col-span-3 to lg:col-span-2 to match the new grid size -->
             <div class="lg:col-span-2 mt-4 p-6 bg-yellow-100 border border-yellow-300 rounded-lg shadow-inner">
                 <h3 class="text-lg font-semibold text-yellow-800">Fault Tolerance Test Concept</h3>
                 <p class="text-sm text-yellow-700 mt-2">
-                    To test fault tolerance, run all 5 Python files, then stop one of the backend services (e.g., kill the process running on Port 5002). The features relying on that service will fail, but the others (e.g., Node 4/5) will remain fully accessible.
+                    To test fault tolerance, run all 5 gRPC services, then stop one of the backend services (e.g., kill the process running on Port 50052). The features relying on that service will fail, but the others (e.g., Node 4/5) will remain fully accessible.
                 </p>
             </div>
         </main>

@@ -7,9 +7,12 @@ python -m grpc_tools.protoc -I./proto --python_out=./generated --grpc_python_out
 
 python -m grpc_tools.protoc -I./proto --python_out=./generated --grpc_python_out=./generated ./proto/enrollment.proto
 
+python -m grpc_tools.protoc -I./proto --python_out=./generated --grpc_python_out=./generated ./proto/grades.proto
+
 psql -U postgres
 CREATE DATABASE student_portal_auth;
 CREATE DATABASE student_portal_courses;
+CREATE DATABASE student_portal_grades;
 \q
 
 Run these in 5 terminals seperately for each one

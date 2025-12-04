@@ -3,186 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentication</title>
+    <title>Login - Student Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
 </head>
-<body class="bg-gray-50">
-
-<div class="min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md p-8 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600">
-        <h1 class="text-3xl font-bold text-center text-indigo-700" id="form-title">System Login</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">
-            REST Gateway (Port 5001) → gRPC Auth Service (Port 50051)
-        </p>
-        
-        <div id="status-message" class="mt-4 p-3 rounded-lg text-center font-medium hidden"></div>
-
-        <div class="mt-6 text-center">
-            <button id="toggle-form-btn" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium transition duration-150">
-                Need an account? Switch to Register
-            </button>
+<body class="bg-gradient-to-br from-indigo-50 to-blue-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Login/Register Toggle -->
+        <div class="bg-white rounded-t-xl shadow-2xl">
+            <div class="flex border-b">
+                <button id="loginTab" class="flex-1 py-4 text-center font-semibold text-indigo-600 border-b-2 border-indigo-600 transition">
+                    Login
+                </button>
+                <button id="registerTab" class="flex-1 py-4 text-center font-semibold text-gray-500 hover:text-indigo-600 transition">
+                    Register
+                </button>
+            </div>
         </div>
 
-        <form id="login-form" class="mt-8 space-y-6">
-            <div>
-                <label for="login-username" class="block text-sm font-medium text-gray-700">Username</label>
-                <input type="text" id="login-username" placeholder="Enter username" required 
-                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-            </div>
-            <div>
-                <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" id="login-password" placeholder="Enter password" required 
-                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-            </div>
-            <button type="submit" 
-                class="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md hover:shadow-lg">
-                Sign In (Get JWT)
-            </button>
-        </form>
+        <div class="bg-white rounded-b-xl shadow-2xl p-8">
+            <div id="message" class="hidden mb-4"></div>
 
-        <form id="register-form" class="mt-8 space-y-6 hidden">
-            <div>
-                <label for="reg-username" class="block text-sm font-medium text-gray-700">New Username</label>
-                <input type="text" id="reg-username" placeholder="Choose a username" required 
-                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-            </div>
-            <div>
-                <label for="reg-password" class="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" id="reg-password" placeholder="Choose a strong password" required 
-                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-            </div>
-            <div>
-                <label for="reg-role" class="block text-sm font-medium text-gray-700">Role</label>
-                <select id="reg-role" 
-                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
-                    <option value="student">Student</option>
-                    <option value="faculty">Faculty</option>
-                </select>
-            </div>
-            <button type="submit" 
-                class="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 shadow-md hover:shadow-lg">
-                Register & Login
-            </button>
-        </form>
+            <!-- Login Form -->
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="loginUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="loginUsername" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="loginPassword" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button type="submit" 
+                        class="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md">
+                    Login
+                </button>
+            </form>
 
-        <div class="mt-6 text-center">
-            <p class="text-xs text-gray-500 border-t pt-4">
-                Using gRPC for backend communication with PostgreSQL persistence
-            </p>
-            <a href="/" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium mt-2 block">
-                ← Back to Home
-            </a>
+            <!-- Register Form (Hidden by default) -->
+            <form id="registerForm" class="space-y-6 hidden">
+                <div>
+                    <label for="registerUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="registerUsername" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="registerPassword" required 
+                           class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="registerRole" class="block text-sm font-medium text-gray-700">Role</label>
+                    <select id="registerRole" 
+                            class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="student">Student</option>
+                        <option value="faculty">Faculty</option>
+                    </select>
+                </div>
+                <button type="submit" 
+                        class="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 shadow-md">
+                    Register
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-xs text-gray-500">
+                    Interacting with: <strong>{{ service_name }}</strong> (gRPC Port 50051)
+                </p>
+            </div>
         </div>
     </div>
-</div>
 
-<script>
-    // CORRECT: Use REST Gateway port, not gRPC port
-    const authServiceUrl = 'http://localhost:5001/api/v1/auth';
-    
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const toggleBtn = document.getElementById('toggle-form-btn');
-    const formTitle = document.getElementById('form-title');
-    const statusMessage = document.getElementById('status-message');
-    let isRegisterMode = false;
+    <script>
+        // Tab switching
+        const loginTab = document.getElementById('loginTab');
+        const registerTab = document.getElementById('registerTab');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
 
-    function setStatus(message, isError = false) {
-        statusMessage.textContent = message;
-        statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
-        if (isError) {
-            statusMessage.classList.add('bg-red-100', 'text-red-700');
-        } else {
-            statusMessage.classList.add('bg-green-100', 'text-green-700');
-        }
-    }
-    
-    function saveTokenAndRedirect(token, role, userId) {
-        localStorage.setItem('user_jwt_token', token);
-        localStorage.setItem('user_role', role);
-        localStorage.setItem('user_id', userId);
-        setStatus('Success! Redirecting to dashboard...', false);
-        setTimeout(() => {
-            window.location.href = '/'; 
-        }, 1000);
-    }
-
-    toggleBtn.addEventListener('click', () => {
-        isRegisterMode = !isRegisterMode;
-        if (isRegisterMode) {
-            formTitle.textContent = 'User Registration';
-            loginForm.classList.add('hidden');
-            registerForm.classList.remove('hidden');
-            toggleBtn.textContent = 'Already have an account? Switch to Login';
-        } else {
-            formTitle.textContent = 'System Login';
+        loginTab.addEventListener('click', () => {
+            loginTab.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            loginTab.classList.remove('text-gray-500');
+            registerTab.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            registerTab.classList.add('text-gray-500');
             loginForm.classList.remove('hidden');
             registerForm.classList.add('hidden');
-            toggleBtn.textContent = 'Need an account? Switch to Register';
-        }
-        statusMessage.classList.add('hidden');
-    });
+        });
 
-    registerForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('reg-username').value;
-        const password = document.getElementById('reg-password').value;
-        const role = document.getElementById('reg-role').value;
+        registerTab.addEventListener('click', () => {
+            registerTab.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            registerTab.classList.remove('text-gray-500');
+            loginTab.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600');
+            loginTab.classList.add('text-gray-500');
+            registerForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+        });
 
-        setStatus('Registering...', false);
-
-        try {
-            const response = await fetch(`${authServiceUrl}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, role })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setStatus(`Registration successful! ${data.message}`, false);
-                saveTokenAndRedirect(data.token, data.role, data.user_id);
-            } else {
-                setStatus(`Registration failed: ${data.message}`, true);
+        // Login handler
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    showMessage('Login successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    showMessage(data.message || 'Login failed', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('Connection error. Auth service may be unavailable.', 'error');
             }
-        } catch (error) {
-            console.error('Network error:', error);
-            setStatus('Network error. Make sure REST Gateway (Port 5001) is running.', true);
-        }
-    });
+        });
 
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('login-username').value;
-        const password = document.getElementById('login-password').value;
-
-        setStatus('Logging in...', false);
-
-        try {
-            const response = await fetch(`${authServiceUrl}/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setStatus(`Login successful for ${username}.`, false);
-                saveTokenAndRedirect(data.token, data.role, data.user_id);
-            } else {
-                setStatus(`Login failed: ${data.message}`, true);
+        // Register handler
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('registerUsername').value;
+            const password = document.getElementById('registerPassword').value;
+            const role = document.getElementById('registerRole').value;
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    showMessage('Registration successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    showMessage(data.message || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                console.error('Register error:', error);
+                showMessage('Connection error. Auth service may be unavailable.', 'error');
             }
-        } catch (error) {
-            console.error('Network error:', error);
-            setStatus('Network error. Make sure REST Gateway (Port 5001) is running.', true);
-        }
-    });
-</script>
+        });
 
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = `p-3 rounded-lg ${type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`;
+            messageDiv.textContent = text;
+            messageDiv.classList.remove('hidden');
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.classList.add('hidden');
+                }, 3000);
+            }
+        }
+    </script>
 </body>
 </html>

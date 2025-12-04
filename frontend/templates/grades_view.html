@@ -1,32 +1,273 @@
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-xl p-8 bg-white rounded-xl shadow-2xl border-t-4 border-blue-600">
-        <h1 class="text-3xl font-bold text-center text-blue-700">Student Grades History</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: **{{ service_name }}** (Port 5003)</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Grades</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-5xl p-8 bg-white rounded-xl shadow-2xl border-t-4 border-blue-600">
+        <h1 class="text-3xl font-bold text-center text-blue-700">My Enrolled Courses & Grades</h1>
+        <p class="text-center text-gray-500 mt-2 text-sm">
+            REST Gateway (Port 5001) → Grades Service (gRPC Port 50054)
+        </p>
         
-        <div class="mt-8 text-left">
-            <p class="font-semibold text-lg text-gray-700">User 101 Grades:</p>
-            <div class="overflow-x-auto mt-2">
+        <div id="statusMessage" class="mt-6 p-4 rounded-lg text-center font-medium hidden"></div>
+
+        <!-- User Info -->
+        <div id="userInfo" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 hidden">
+            <p class="text-sm text-blue-800">
+                <strong>Student:</strong> <span id="displayUsername">Loading...</span>
+            </p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="mt-8 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-gray-600">Loading your courses and grades...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="mt-8 p-6 bg-red-50 rounded-lg border border-red-200 hidden">
+            <p class="text-red-700 text-center font-semibold">
+                Failed to load grades. The Grades Service may be unavailable.
+            </p>
+        </div>
+
+        <!-- Courses & Grades Table -->
+        <div id="coursesContainer" class="mt-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <p class="font-semibold text-lg text-gray-700">Your Enrolled Courses:</p>
+                <div class="flex items-center space-x-4 text-sm">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                        <span class="text-gray-600">Grade Released</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-gray-400 rounded-full mr-2"></div>
+                        <span class="text-gray-600">Pending</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden shadow-sm">
                     <thead class="bg-blue-50">
                         <tr>
-                            <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Course</th>
+                            <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Course ID</th>
+                            <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Course Name</th>
                             <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-center">Grade</th>
                             <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Semester</th>
+                            <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Status</th>
+                            <th class="px-6 py-3 text-xs font-medium text-blue-700 uppercase tracking-wider text-left">Enrolled</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-100">
-                        <tr><td class="px-6 py-4 whitespace-nowrap">HIST101</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-green-600">A-</td><td class="px-6 py-4 whitespace-nowrap">Fall 2023</td></tr>
-                        <tr><td class="px-6 py-4 whitespace-nowrap">CS100</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-blue-600">B+</td><td class="px-6 py-4 whitespace-nowrap">Fall 2023</td></tr>
-                        <tr><td class="px-6 py-4 whitespace-nowrap">MATH101</td><td class="px-6 py-4 whitespace-nowrap text-center font-bold text-green-600">A</td><td class="px-6 py-4 whitespace-nowrap">Spring 2024</td></tr>
+                    <tbody id="coursesTableBody" class="bg-white divide-y divide-gray-100">
+                        <!-- Courses will be inserted here -->
                     </tbody>
                 </table>
             </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="mt-6 p-8 bg-gray-50 rounded-lg text-center hidden">
+                <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <p class="mt-3 text-gray-700 font-medium">You are not enrolled in any courses yet.</p>
+                <p class="text-sm text-gray-500 mt-1">Visit the course catalog to enroll in courses.</p>
+                <a href="/courses" class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Browse Courses
+                </a>
+            </div>
         </div>
-        <div class="mt-6 text-center">
-            <p class="text-xs text-gray-500 border-t pt-4">
-                If the **Grades Read Service** (Node 4) fails, students cannot view grades, but faculty can still upload new grades (Node 5).
+
+        <!-- Footer Info -->
+        <div class="mt-8 text-center border-t pt-6">
+            <p class="text-xs text-gray-500 mb-3">
+                <strong>Fault Tolerance:</strong> If the Grades Service (Port 50054) is down, you won't be able to view grades, 
+                but other services (Auth, Courses, Enrollment) continue to work independently.
             </p>
-            <a href="/" class="mt-4 inline-block text-sm text-blue-500 hover:underline font-medium">&larr; Back to Dashboard</a>
+            <div class="flex justify-center space-x-4">
+                <a href="/courses" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    View Courses
+                </a>
+                <span class="text-gray-300">|</span>
+                <a href="/" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    Dashboard
+                </a>
+                <span class="text-gray-300">|</span>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    const gradesServiceUrl = 'http://localhost:5001/api/v1/grades/enrolled-with-grades';
+
+    function getToken() {
+        return localStorage.getItem('user_jwt_token');
+    }
+
+    function getRole() {
+        return localStorage.getItem('user_role');
+    }
+
+    function showStatus(message, type = 'info') {
+        const el = document.getElementById('statusMessage');
+        el.textContent = message;
+        el.className = 'mt-6 p-4 rounded-lg text-center font-medium block';
+        
+        if (type === 'success') {
+            el.classList.add('bg-green-100', 'text-green-800');
+        } else if (type === 'error') {
+            el.classList.add('bg-red-100', 'text-red-800');
+        } else {
+            el.classList.add('bg-blue-100', 'text-blue-800');
+        }
+        el.classList.remove('hidden');
+    }
+
+    function hideStatus() {
+        document.getElementById('statusMessage').classList.add('hidden');
+    }
+
+    function getGradeColor(grade) {
+        if (grade === 'Not Released') return 'text-gray-500 italic';
+        
+        const gradeValue = grade.replace('+', '').replace('-', '');
+        if (gradeValue === 'A') return 'text-green-600 font-bold text-lg';
+        if (gradeValue === 'B') return 'text-blue-600 font-bold text-lg';
+        if (gradeValue === 'C') return 'text-yellow-600 font-bold text-lg';
+        if (gradeValue === 'D') return 'text-orange-600 font-bold text-lg';
+        return 'text-red-600 font-bold text-lg';
+    }
+
+    function getStatusBadge(gradeReleased) {
+        if (gradeReleased) {
+            return '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Released</span>';
+        } else {
+            return '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700">Pending</span>';
+        }
+    }
+
+    async function fetchCoursesAndGrades() {
+        const token = getToken();
+        const role = getRole();
+
+        // Check authentication
+        if (!token) {
+            showStatus('Please login to view your grades', 'error');
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 2000);
+            return;
+        }
+
+        // Check if user is a student
+        if (role !== 'student') {
+            document.getElementById('loadingState').classList.add('hidden');
+            showStatus(`Only students can view grades. Your role is "${role}".`, 'error');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+            return;
+        }
+
+        const loadingEl = document.getElementById('loadingState');
+        const errorEl = document.getElementById('errorState');
+        const coursesContainer = document.getElementById('coursesContainer');
+        const userInfo = document.getElementById('userInfo');
+
+        try {
+            const response = await fetch(gradesServiceUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            loadingEl.classList.add('hidden');
+
+            if (!response.ok) {
+                errorEl.classList.remove('hidden');
+                const data = await response.json().catch(() => ({ message: response.statusText }));
+                showStatus(`Failed to load courses: ${data.message || 'Unknown error'}`, 'error');
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                // Show user info
+                document.getElementById('displayUsername').textContent = data.student_name || 'Student';
+                userInfo.classList.remove('hidden');
+
+                // Show courses container
+                coursesContainer.classList.remove('hidden');
+
+                if (data.courses && data.courses.length > 0) {
+                    const tbody = document.getElementById('coursesTableBody');
+                    tbody.innerHTML = '';
+
+                    data.courses.forEach(course => {
+                        const enrollDate = new Date(course.enrollment_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                        });
+
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50 transition-colors';
+                        
+                        const gradeDisplay = course.grade_released ? course.grade : 'Not Released';
+                        const semesterDisplay = course.semester || '-';
+
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.course_id}</td>
+                            <td class="px-6 py-4 text-sm text-gray-700">${course.course_name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="${getGradeColor(gradeDisplay)}">${gradeDisplay}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${semesterDisplay}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                ${getStatusBadge(course.grade_released)}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${enrollDate}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    document.getElementById('emptyState').classList.add('hidden');
+                } else {
+                    // No enrollments
+                    document.getElementById('emptyState').classList.remove('hidden');
+                    document.getElementById('coursesTableBody').innerHTML = '';
+                }
+            } else {
+                errorEl.classList.remove('hidden');
+                showStatus(data.message || 'Failed to load courses', 'error');
+            }
+
+        } catch (error) {
+            console.error('Network error fetching courses and grades:', error);
+            loadingEl.classList.add('hidden');
+            errorEl.classList.remove('hidden');
+            showStatus('Network error. Grades Service may be unavailable.', 'error');
+        }
+    }
+
+    // Load courses and grades on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchCoursesAndGrades();
+    });
+</script>
+
+</body>
+</html>

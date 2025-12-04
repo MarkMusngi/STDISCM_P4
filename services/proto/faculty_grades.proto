@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package faculty_grades;
+
+// Service for faculty to manage student grades
+service FacultyGradesService {
+    // Get all students in the system (Faculty only)
+    rpc GetAllStudents(GetStudentsRequest) returns (StudentsResponse);
+    
+    // Get all courses a specific student is enrolled in (Faculty only)
+    rpc GetStudentEnrollments(GetEnrollmentsRequest) returns (StudentEnrollmentsResponse);
+    
+    // Upload or update a grade for a student in a specific course (Faculty only)
+    rpc UploadStudentGrade(UploadGradeRequest) returns (UploadGradeResponse);
+}
+
+// Request messages
+message GetStudentsRequest {
+    string token = 1;  // Faculty JWT token
+}
+
+message GetEnrollmentsRequest {
+    string token = 1;       // Faculty JWT token
+    string student_id = 2;  // Student's public_id (UUID)
+}
+
+message UploadGradeRequest {
+    string token = 1;       // Faculty JWT token
+    string student_id = 2;  // Student's public_id (UUID)
+    string course_id = 3;   // Course ID (e.g., "CS101")
+    string grade = 4;       // Grade (e.g., "A", "B+", "F")
+    string semester = 5;    // Semester (e.g., "Fall 2024")
+    string remarks = 6;     // Optional remarks/comments
+}
+
+// Response messages
+message StudentsResponse {
+    string status = 1;                // "success" or "error"
+    string message = 2;               // Response message
+    repeated StudentInfo students = 3; // List of students
+}
+
+message StudentInfo {
+    string student_id = 1;  // Student's public_id (UUID)
+    string username = 2;    // Student's username
+}
+
+message StudentEnrollmentsResponse {
+    string status = 1;                    // "success" or "error"
+    string message = 2;                   // Response message
+    string student_id = 3;                // Student's public_id
+    string student_username = 4;          // Student's username
+    repeated EnrollmentInfo enrollments = 5; // List of enrollments
+}
+
+message EnrollmentInfo {
+    string course_id = 1;        // Course ID (e.g., "CS101")
+    string course_name = 2;      // Course name
+    string enrollment_date = 3;  // Date of enrollment
+}
+
+message UploadGradeResponse {
+    string status = 1;   // "success" or "error"
+    string message = 2;  // Response message
+    string grade_id = 3; // UUID of the grade record
+}
