@@ -45,29 +45,40 @@
 
             <!-- Node 2: Course Catalog Service (Port 5002) -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-green-500">
-                <h2 class="text-xl font-semibold text-gray-800">Course Catalog (Node 2: 50052)</h2>
-                <p class="mt-2 text-gray-600 text-sm">Manages course availability and static catalog viewing (Read optimized).</p>
-                <a href="/courses" class="mt-4 inline-block text-green-600 hover:text-green-800 font-medium">
-                    View Courses &rarr;
-                </a>
-            </div>
+                <h2 class="text-xl font-semibold text-gray-800">Course Catalog (Node 2: 50052)</h2>
+                <p class="mt-2 text-gray-600 text-sm">Manages course availability and static catalog viewing (Read optimized).</p>
+                {% if role == 'student' %}
+                <a href="/courses" class="mt-4 inline-block text-green-600 hover:text-green-800 font-medium">
+                    View Courses &rarr;
+                </a>
+                {% else %}
+                <p class="mt-4 text-sm text-gray-400 italic">Student access only</p>
+                {% endif %}
+            </div>
             
             <!-- Node 3: Enrollment Processor (Port 5003) -->
-            <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-orange-500">
-                <h2 class="text-xl font-semibold text-gray-800">Enrollment Processor (Node 3: 50053)</h2>
-                <p class="mt-2 text-gray-600 text-sm">Dedicated service for transactional student registration (Write optimized).</p>
-                <a href="/enroll" class="mt-4 inline-block text-orange-600 hover:text-orange-800 font-medium">
-                    Enroll in Courses &rarr;
+            <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-yellow-500">
+                <h2 class="text-xl font-semibold text-gray-800">Enrollment Actions (Node 3: 50053)</h2>
+                <p class="mt-2 text-gray-600 text-sm">Secured endpoint to enroll in, drop, or swap courses.</p>
+                {% if role == 'student' %}
+                <a href="/enroll" class="mt-4 inline-block text-yellow-600 hover:text-yellow-800 font-medium">
+                    Manage My Enrollment &rarr;
                 </a>
+                {% else %}
+                <p class="mt-4 text-sm text-gray-400 italic">Student access only</p>
+                {% endif %}
             </div>
-
             <!-- Node 4: Grades Read Service -->
             <div class="service-card bg-white p-6 rounded-lg shadow-md border-t-4 border-blue-500">
-                <h2 class="text-xl font-semibold text-gray-800">View Grades (Node 4: 50054)</h2>
-                <p class="mt-2 text-gray-600 text-sm">Provides read-only access to historical student performance data (High availability).</p>
+                <h2 class="text-xl font-semibold text-gray-800">My Grades (Node 4: 50054)</h2>
+                <p class="mt-2 text-gray-600 text-sm">Secured endpoint to retrieve your current course grades (Isolated reads).</p>
+                {% if role == 'student' %}
                 <a href="/my_grades" class="mt-4 inline-block text-blue-600 hover:text-blue-800 font-medium">
                     Check My Grades &rarr;
                 </a>
+                {% else %}
+                <p class="mt-4 text-sm text-gray-400 italic">Student access only</p>
+                {% endif %}
             </div>
 
             <!-- Node 5: Grades Write Service -->
