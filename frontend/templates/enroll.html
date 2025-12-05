@@ -13,18 +13,9 @@
 <div class="min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-xl p-8 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600">
         <h1 class="text-3xl font-bold text-center text-indigo-700">Course Enrollment</h1>
-        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: <strong>Enrollment Service (Node 4)</strong> - Port 5003</p>
+        <p class="text-center text-gray-500 mt-2 text-sm">Interacting with: <strong>Enrollment Service (Node 4)</strong></p>
 
         <div id="statusMessage" class="mt-6 p-4 rounded-lg text-center font-medium hidden"></div>
-
-        <div id="userInfo" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p class="text-sm text-blue-800">
-                <strong>Logged in as:</strong> <span id="displayUsername">Loading...</span> (<span id="displayRole">Loading...</span>)
-            </p>
-            <p class="text-sm text-blue-600 mt-1">
-                <strong>User ID:</strong> <span id="displayUserId">Loading...</span>
-            </p>
-        </div>
 
         <div class="mt-8 p-6 bg-indigo-50 rounded-lg border border-indigo-200">
             <p class="text-lg font-semibold text-indigo-800 mb-4">Enroll in a Course</p>
@@ -62,8 +53,9 @@
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Your Current Enrollments</h2>
             <div id="enrollmentsList" class="space-y-3">
                 <p id="loadingEnrollments" class="text-sm text-gray-500">Loading enrollments...</p>
-                </div>
+            </div>
         </div>
+        
         <div class="mt-6 flex flex-col space-y-3">
             <a href="/courses" class="text-center text-sm text-gray-600 hover:text-gray-800 font-medium">
                 &larr; Back to Course Catalog
@@ -73,11 +65,10 @@
 </div>
 
 <script>
-    const enrollmentServiceUrl = 'http://localhost:5001/api/v1/enroll/course';
-    const enrollmentsApiUrl = 'http://localhost:5001/api/v1/enroll/student'; // Updated to match REST Gateway
-    const dropCourseApiUrl = 'http://localhost:5001/api/v1/enroll/drop'; // New drop endpoint
+    const enrollmentServiceUrl = '/api/proxy/enroll/course'; 
+    const enrollmentsApiUrl = '/api/proxy/enroll/student';     
+    const dropCourseApiUrl = '/api/proxy/enroll/drop';         
     
-    // Get parameters from URL (if redirected from courses page)
     const urlParams = new URLSearchParams(window.location.search);
     const prefilledCourseId = urlParams.get('course_id');
 
@@ -101,34 +92,15 @@
         el.classList.add('hidden');
     }
 
-    function getToken() {
-        return localStorage.getItem('user_jwt_token');
-    }
-
-    function getRole() {
-        return localStorage.getItem('user_role');
-    }
-
-    function getUserId() {
-        return localStorage.getItem('user_id');
-    }
-
-    // New: Function to load and display enrolled courses
     async function loadStudentEnrollments() {
-        const token = getToken();
         const enrollmentsListEl = document.getElementById('enrollmentsList');
         enrollmentsListEl.innerHTML = '<p id="loadingEnrollments" class="text-sm text-gray-500">Loading enrollments...</p>';
-
-        if (!token) {
-            enrollmentsListEl.innerHTML = '<p class="text-sm text-red-500">Cannot load enrollments. Please log in.</p>';
-            return;
-        }
 
         try {
             const response = await fetch(enrollmentsApiUrl, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 }
             });
 
@@ -147,7 +119,7 @@
                     return;
                 }
 
-                enrollmentsListEl.innerHTML = ''; // Clear loading message
+                enrollmentsListEl.innerHTML = '';
 
                 enrollments.forEach(enrollment => {
                     const date = new Date(enrollment.enrollment_date).toLocaleDateString();
@@ -167,26 +139,21 @@
                     `;
                     enrollmentsListEl.appendChild(item);
                 });
+            } else if (response.status === 401) {
+                enrollmentsListEl.innerHTML = '<p class="text-sm text-red-500">Session expired. Redirecting to login...</p>';
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
             } else {
                 enrollmentsListEl.innerHTML = `<p class="text-sm text-red-500">Error loading enrollments: ${data.message || 'Unknown error'}</p>`;
             }
 
         } catch (error) {
             console.error('Enrollments network error:', error);
-            enrollmentsListEl.innerHTML = '<p class="text-sm text-red-500">Network error: Could not connect to enrollment service. Make sure the REST Gateway is running.</p>';
+            enrollmentsListEl.innerHTML = '<p class="text-sm text-red-500">Network error: Could not connect to enrollment service.</p>';
         }
     }
 
-    // New: Function to handle course dropping
     async function dropCourse(courseId, courseName) {
         if (!confirm(`Are you sure you want to drop the course: ${courseName} (${courseId})? This action cannot be undone.`)) {
-            return;
-        }
-
-        const token = getToken();
-        if (!token) {
-            showStatus('Authentication required. Please log in.', 'error');
-            setTimeout(() => { window.location.href = '/auth.html'; }, 2000);
             return;
         }
         
@@ -196,7 +163,7 @@
             const response = await fetch(`${dropCourseApiUrl}/${encodeURIComponent(courseId)}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 }
             });
 
@@ -209,12 +176,13 @@
             
             if (response.ok) {
                 showStatus(`✓ ${data.message || 'Course dropped successfully.'}`, 'success');
-                // Reload the enrollments list after a successful drop
                 loadStudentEnrollments();
-                // Clear the enrollment form input if it matches the dropped course
                 if (document.getElementById('courseIdInput').value.trim().toUpperCase() === courseId) {
                     document.getElementById('courseIdInput').value = '';
                 }
+            } else if (response.status === 401) {
+                showStatus('Session expired. Redirecting to login...', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
             } else {
                 showStatus(`Drop failed: ${data.message || 'Unknown error'}`, 'error');
             }
@@ -225,39 +193,9 @@
         }
     }
 
-
-    // Check if user is logged in and is a student on page load
     window.addEventListener('DOMContentLoaded', () => {
-        const token = getToken();
-        const role = getRole();
-        const userId = getUserId();
+        loadStudentEnrollments();
 
-        // Display user info if available
-        document.getElementById('displayUserId').textContent = userId || 'Not available';
-        document.getElementById('displayRole').textContent = role || 'Unknown';
-        document.getElementById('displayUsername').textContent = 'User'; // You can store username too if needed
-
-        if (!token) {
-            showStatus('You must be logged in to enroll. Redirecting to login...', 'error');
-            setTimeout(() => {
-                window.location.href = '/auth.html';
-            }, 2000);
-            return;
-        }
-
-        if (role !== 'student') {
-            showStatus(`Only students can enroll and drop. Your role is "${role}". Redirecting...`, 'error');
-            document.getElementById('enrollBtn').disabled = true;
-            document.getElementById('courseIdInput').disabled = true;
-            setTimeout(() => {
-                window.location.href = '/courses';
-            }, 3000);
-        } else {
-            // New: Load enrollments only for students
-            loadStudentEnrollments();
-        }
-
-        // Pre-fill course ID if coming from courses page
         if (prefilledCourseId) {
             document.getElementById('courseIdInput').value = prefilledCourseId.toUpperCase();
             showStatus(`Ready to enroll in ${prefilledCourseId}`, 'info');
@@ -267,30 +205,14 @@
     async function confirmEnrollment(event) {
         event.preventDefault();
         
-        const token = getToken();
-        const role = getRole();
         const courseId = document.getElementById('courseIdInput').value.trim().toUpperCase();
         const enrollBtn = document.getElementById('enrollBtn');
-
-        if (!token) {
-            showStatus('Authentication required. Please log in.', 'error');
-            setTimeout(() => {
-                window.location.href = '/auth.html';
-            }, 2000);
-            return;
-        }
-
-        if (role !== 'student') {
-            showStatus(`Only students can enroll. Your role is "${role}".`, 'error');
-            return;
-        }
 
         if (!courseId) {
             showStatus('Please enter a valid Course ID.', 'error');
             return;
         }
 
-        // Disable form and show loading state
         enrollBtn.disabled = true;
         enrollBtn.textContent = 'Processing...';
         document.getElementById('courseIdInput').disabled = true;
@@ -300,8 +222,7 @@
             const response = await fetch(`${enrollmentServiceUrl}/${encodeURIComponent(courseId)}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({})
             });
@@ -315,27 +236,23 @@
 
             if (response.ok) {
                 showStatus(`✓ ${data.message || 'Enrollment successful!'}`, 'success');
-                // MODIFIED: Reload enrollments instead of redirecting
                 loadStudentEnrollments();
+                document.getElementById('courseIdInput').value = '';
                 enrollBtn.disabled = false;
                 enrollBtn.textContent = 'Confirm Enrollment';
                 document.getElementById('courseIdInput').disabled = false;
             } else {
-                // Re-enable form on error
                 enrollBtn.disabled = false;
                 enrollBtn.textContent = 'Confirm Enrollment';
                 document.getElementById('courseIdInput').disabled = false;
 
-                if (response.status === 503) {
+                if (response.status === 401) {
+                    showStatus('Session expired. Redirecting to login...', 'error');
+                    setTimeout(() => { window.location.href = '/login'; }, 1500);
+                } else if (response.status === 503) {
                     showStatus(`Service Unavailable: ${data.message || 'Enrollment service or database is down'}`, 'error');
                 } else if (response.status === 403) {
                     showStatus(`Access Denied: ${data.message || 'You do not have permission to enroll'}`, 'error');
-                } else if (response.status === 401) {
-                    showStatus('Authentication failed. Please log in again.', 'error');
-                    setTimeout(() => {
-                        localStorage.clear();
-                        window.location.href = '/auth.html';
-                    }, 2000);
                 } else if (response.status === 400) {
                     showStatus(`${data.message || 'Invalid enrollment request'}`, 'error');
                 } else if (response.status === 404) {
@@ -347,9 +264,8 @@
 
         } catch (error) {
             console.error('Enrollment network error:', error);
-            showStatus('Network error: Could not reach Enrollment Service (Port 5003). The service may be down.', 'error');
+            showStatus('Network error: Could not reach Enrollment Service.', 'error');
             
-            // Re-enable form
             enrollBtn.disabled = false;
             enrollBtn.textContent = 'Confirm Enrollment';
             document.getElementById('courseIdInput').disabled = false;

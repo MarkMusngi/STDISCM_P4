@@ -13,7 +13,6 @@ import psycopg2
 import uuid
 import os
 
-# Configuration
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'student_portal_auth')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '1234')
@@ -22,7 +21,7 @@ POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'super_secret_auth_key_12345')
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 1
+JWT_EXPIRATION_HOURS = 24
 
 def get_db_connection():
     try:
@@ -64,6 +63,7 @@ def init_db():
         conn.close()
 
 def generate_jwt(public_id, username, role):
+    """Generate JWT token - public_id can be UUID or string"""
     expiration_time = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
     payload = {
         'public_id': str(public_id),
@@ -111,21 +111,26 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
                 VALUES (%s, %s, %s, %s) RETURNING public_id;
                 """
                 cur.execute(insert_query, (str(public_id), username, password_hash, role))
-                new_user_id = cur.fetchone()[0]
+                returned_id = cur.fetchone()[0]  # UUID returned from DB
 
             conn.commit()
-            token = generate_jwt(new_user_id, username, role)
+            
+            # Generate token
+            token = generate_jwt(public_id, username, role)
+            
+            print(f"✓ User '{username}' registered successfully with ID: {public_id}")
             
             return auth_pb2.AuthResponse(
                 status="success",
                 message=f"User {username} successfully registered",
                 token=token,
-                user_id=str(new_user_id),
+                user_id=str(public_id),  # Convert to string for response
                 role=role
             )
 
         except psycopg2.errors.UniqueViolation:
             conn.rollback()
+            print(f"✗ Registration failed: Username '{username}' already exists")
             return auth_pb2.AuthResponse(
                 status="error",
                 message=f"User '{username}' already exists",
@@ -135,7 +140,9 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
             )
         except Exception as e:
             conn.rollback()
-            print(f"Registration error: {e}")
+            print(f"✗ Registration error for user '{username}': {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return auth_pb2.AuthResponse(
                 status="error",
                 message="An internal error occurred during registration",
@@ -178,20 +185,22 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
                 result = cur.fetchone()
                 
                 if result and check_password_hash(result[1], password):
-                    user = {
-                        "public_id": result[0],
-                        "role": result[2]
-                    }
-                    token = generate_jwt(user['public_id'], username, user['role'])
+                    user_public_id = result[0]  # string from DB
+                    user_role = result[2]
+                    
+                    token = generate_jwt(user_public_id, username, user_role)
+                    
+                    print(f"✓ User '{username}' logged in successfully")
                     
                     return auth_pb2.AuthResponse(
                         status="success",
                         message="Login successful",
                         token=token,
-                        user_id=str(user['public_id']),
-                        role=user['role']
+                        user_id=str(user_public_id),
+                        role=user_role
                     )
                 else:
+                    print(f"✗ Login failed for user '{username}': Invalid credentials")
                     return auth_pb2.AuthResponse(
                         status="error",
                         message="Invalid credentials",
@@ -200,7 +209,9 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
                         role=""
                     )
         except Exception as e:
-            print(f"Login error: {e}")
+            print(f"✗ Login error for user '{username}': {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return auth_pb2.AuthResponse(
                 status="error",
                 message="Internal server error",
@@ -233,6 +244,7 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
                 username=payload['username']
             )
         except jwt.ExpiredSignatureError:
+            print(f"✗ Token validation failed: Token expired")
             return auth_pb2.ValidateResponse(
                 status="invalid",
                 message="Token expired",
@@ -240,7 +252,8 @@ class AuthServiceServicer(auth_pb2_grpc.AuthServiceServicer):
                 role="",
                 username=""
             )
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            print(f"✗ Token validation failed: Invalid token - {e}")
             return auth_pb2.ValidateResponse(
                 status="invalid",
                 message="Invalid token",
@@ -254,7 +267,10 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_pb2_grpc.add_AuthServiceServicer_to_server(AuthServiceServicer(), server)
     server.add_insecure_port('[::]:50051')
+    print("=" * 70)
     print("gRPC Auth Service starting on port 50051...")
+    print(f"JWT Token Expiration: {JWT_EXPIRATION_HOURS} hours")
+    print("=" * 70)
     server.start()
     server.wait_for_termination()
 

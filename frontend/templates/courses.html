@@ -19,7 +19,7 @@
     <h1 class="text-3xl font-bold text-center text-green-700">Course Catalog</h1>
 
     <p id="serviceInfo" class="text-center text-gray-500 mt-2 text-sm">
-      Catalog View: <strong id="serviceName">Course View (Port 5002)</strong> | Enrollment Action: <strong>Enrollment Service (Port 5003)</strong>
+      REST Gateway (Port 5001) → Course Service (gRPC Port 50052)
     </p>
 
     <div id="statusMessage" class="mt-4 p-3 rounded-lg text-sm hidden" role="alert"></div>
@@ -30,15 +30,18 @@
       <div id="courseListContainer" class="overflow-hidden border border-gray-200 rounded-xl">
         <div id="loadingState" class="p-6 text-center text-gray-500">Loading courses...</div>
         <div id="errorState" class="p-6 text-center text-red-500 font-semibold hidden">
-          Error loading courses. Course Service (Port 5002) may be down or the database is unavailable.
+          Error loading courses. Course Service (Port 50052) may be down or the database is unavailable.
         </div>
         <div id="coursesTable" class="p-6"></div>
       </div>
 
-      <!-- NEW HOME BUTTON -->
-      <div class="flex justify-end pt-4">
+      <!-- Navigation Buttons -->
+      <div class="flex justify-between pt-4 border-t">
         <button onclick="window.location.href='/'" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition duration-150">
-          Back to Home
+          ← Back to Home
+        </button>
+        <button onclick="window.location.href='/logout'" class="text-sm font-medium text-red-600 hover:text-red-800 transition duration-150">
+          Logout
         </button>
       </div>
 
@@ -48,11 +51,7 @@
 
 <script>
 
-  const courseServiceUrl = 'http://localhost:5001/api/v1/courses';
-
-  function getToken() { return localStorage.getItem('user_jwt_token'); }
-  function getRole() { return localStorage.getItem('user_role'); }
-  function getUserId() { return localStorage.getItem('user_id'); }
+  const courseServiceUrl = '/api/proxy/courses';
 
   function showStatus(message, type='info') {
     const el = document.getElementById('statusMessage');
@@ -70,25 +69,7 @@
     el.textContent = '';
   }
 
-  // removed logout button logic completely
-
   function redirectToEnroll(courseId) {
-    const token = getToken();
-    const userRole = getRole();
-
-    if (!token) {
-      showStatus('You must be logged in to enroll.', 'error');
-      setTimeout(() => {
-        window.location.href = '/auth.html';
-      }, 1500);
-      return;
-    }
-
-    if (userRole !== 'student') {
-      showStatus(`Only students can enroll. Your role is ${userRole}.`, 'error');
-      return;
-    }
-
     window.location.href = `/enroll?course_id=${encodeURIComponent(courseId)}`;
   }
 
@@ -104,14 +85,26 @@
     hideStatus();
 
     try {
-      const res = await fetch(courseServiceUrl, { method: 'GET' });
+      const res = await fetch(courseServiceUrl, { 
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!res.ok) {
         loadingEl.classList.add('hidden');
+        
+        if (res.status === 401) {
+          showStatus('Session expired. Redirecting to login...', 'error');
+          setTimeout(() => { window.location.href = '/login'; }, 1500);
+          return;
+        }
+        
         errorEl.classList.remove('hidden');
         let payload;
         try { payload = await res.json(); } catch (_) { payload = { message: res.statusText }; }
-        showStatus(`Failed to fetch catalog (Node 3): ${payload.message || res.statusText}`, 'error');
+        showStatus(`Failed to fetch catalog: ${payload.message || res.statusText}`, 'error');
         return;
       }
 
@@ -137,9 +130,6 @@
           <tbody class="bg-white divide-y divide-gray-200">
       `;
 
-      const userRole = getRole();
-      const token = getToken();
-
       for (const [id, course] of Object.entries(courses)) {
         const isFull = course.enrolled >= course.capacity;
         const isAvailable = course.open && !isFull;
@@ -151,14 +141,10 @@
 
         let actionButton = '';
 
-        if (token && userRole === 'student') {
-          if (isAvailable) {
-            actionButton = `<button onclick="redirectToEnroll('${id}')" class="py-1 px-3 rounded-full text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Enroll</button>`;
-          } else {
-            actionButton = `<button disabled class="py-1 px-3 rounded-full text-sm font-medium bg-gray-100 text-gray-500 cursor-not-allowed">${statusText}</button>`;
-          }
+        if (isAvailable) {
+          actionButton = `<button onclick="redirectToEnroll('${id}')" class="py-1 px-3 rounded-full text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Enroll</button>`;
         } else {
-            actionButton = `<span class="text-sm text-gray-400">Login to Enroll</span>`;
+          actionButton = `<button disabled class="py-1 px-3 rounded-full text-sm font-medium bg-gray-100 text-gray-500 cursor-not-allowed">${statusText}</button>`;
         }
 
         html += `
@@ -185,7 +171,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('serviceName').textContent = 'Course View (Port 5002)';
     fetchCourses();
   });
 

@@ -5,14 +5,13 @@ sys.path.append('./generated')
 
 import grades_pb2
 import grades_pb2_grpc
-import auth_pb2
-import auth_pb2_grpc
 
 import psycopg2
 from psycopg2.extras import DictCursor
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+import jwt
 
 # Configuration
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'student_portal_grades')
@@ -21,8 +20,9 @@ POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '1234')
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 
-# Auth service gRPC address
-AUTH_GRPC_HOST = os.getenv('AUTH_GRPC_HOST', 'localhost:50051')
+# JWT Configuration (must match auth server)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'super_secret_auth_key_12345')
+JWT_ALGORITHM = "HS256"
 
 def get_db_connection():
     try:
@@ -38,30 +38,52 @@ def get_db_connection():
         print(f"Database connection failed: {e}")
         return None
 
-def validate_token_with_auth_service(token):
-    """Call Auth Service via gRPC to validate token"""
-    try:
-        with grpc.insecure_channel(AUTH_GRPC_HOST) as channel:
-            stub = auth_pb2_grpc.AuthServiceStub(channel)
-            response = stub.ValidateToken(auth_pb2.ValidateRequest(token=token))
-            
-            if response.status == "valid":
-                return {
-                    "valid": True,
-                    "user_id": response.user_id,
-                    "role": response.role,
-                    "username": response.username
-                }
-            else:
-                return {
-                    "valid": False,
-                    "message": response.message
-                }
-    except grpc.RpcError as e:
-        print(f"gRPC error calling auth service: {e}")
+def validate_token_locally(token):
+    """Validate JWT token locally without calling auth service"""
+    if not token:
         return {
             "valid": False,
-            "message": "Auth service unavailable"
+            "message": "Token missing"
+        }
+    
+    try:
+        # Decode and verify the JWT token
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        
+        # Check if token has expired (jwt.decode already does this, but being explicit)
+        exp_timestamp = payload.get('exp')
+        if exp_timestamp:
+            exp_datetime = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+            if datetime.now(timezone.utc) > exp_datetime:
+                return {
+                    "valid": False,
+                    "message": "Token expired"
+                }
+        
+        return {
+            "valid": True,
+            "user_id": payload.get('public_id'),
+            "role": payload.get('role'),
+            "username": payload.get('username')
+        }
+    
+    except jwt.ExpiredSignatureError:
+        print(f"✗ Token validation failed: Token expired")
+        return {
+            "valid": False,
+            "message": "Token expired"
+        }
+    except jwt.InvalidTokenError as e:
+        print(f"✗ Token validation failed: Invalid token - {e}")
+        return {
+            "valid": False,
+            "message": "Invalid token"
+        }
+    except Exception as e:
+        print(f"✗ Token validation error: {e}")
+        return {
+            "valid": False,
+            "message": "Token validation error"
         }
 
 def init_db():
@@ -135,8 +157,8 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
         """Get all enrolled courses with their grades (or 'Not Released' status)"""
         token = request.token
         
-        # Validate token
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation instead of calling auth service
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return grades_pb2.EnrolledCoursesWithGradesResponse(
@@ -234,6 +256,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                     
                     course_grades_list.append(course_grade)
             
+            print(f"✓ Retrieved enrolled courses with grades for user {user_id}")
             return grades_pb2.EnrolledCoursesWithGradesResponse(
                 status="success",
                 message="Enrolled courses with grades retrieved",
@@ -242,7 +265,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
             )
         
         except Exception as e:
-            print(f"Error fetching enrolled courses with grades: {e}")
+            print(f"✗ Error fetching enrolled courses with grades: {e}")
             return grades_pb2.EnrolledCoursesWithGradesResponse(
                 status="error",
                 message=f"Internal server error: {str(e)}",
@@ -259,8 +282,8 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
         """Get all grades for a student"""
         token = request.token
         
-        # Validate token
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return grades_pb2.GradesResponse(
@@ -326,6 +349,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                     )
                     grades.append(grade_info)
                 
+                print(f"✓ Retrieved {len(grades)} grades for user {user_id}")
                 return grades_pb2.GradesResponse(
                     status="success",
                     message="Grades retrieved successfully",
@@ -334,7 +358,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                 )
         
         except Exception as e:
-            print(f"Error fetching grades: {e}")
+            print(f"✗ Error fetching grades: {e}")
             return grades_pb2.GradesResponse(
                 status="error",
                 message="Internal server error",
@@ -353,8 +377,8 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
         semester = request.semester
         remarks = request.remarks
         
-        # Validate token
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return grades_pb2.UploadGradeResponse(
@@ -393,7 +417,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                 """, (grade_id, student_id, course_id, grade, semester, remarks, faculty_id))
             
             conn.commit()
-            print(f"Grade uploaded: {grade} for student {student_id} in {course_id}")
+            print(f"✓ Grade uploaded: {grade} for student {student_id} in {course_id}")
             
             return grades_pb2.UploadGradeResponse(
                 status="success",
@@ -403,7 +427,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
         
         except Exception as e:
             conn.rollback()
-            print(f"Error uploading grade: {e}")
+            print(f"✗ Error uploading grade: {e}")
             return grades_pb2.UploadGradeResponse(
                 status="error",
                 message="Failed to upload grade",
@@ -417,8 +441,8 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
         token = request.token
         course_id = request.course_id
         
-        # Validate token
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return grades_pb2.CourseGradesResponse(
@@ -475,6 +499,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                     )
                     student_grades.append(student_grade)
                 
+                print(f"✓ Retrieved {len(student_grades)} grades for course {course_id}")
                 return grades_pb2.CourseGradesResponse(
                     status="success",
                     message="Course grades retrieved",
@@ -484,7 +509,7 @@ class GradesServiceServicer(grades_pb2_grpc.GradesServiceServicer):
                 )
         
         except Exception as e:
-            print(f"Error fetching course grades: {e}")
+            print(f"✗ Error fetching course grades: {e}")
             return grades_pb2.CourseGradesResponse(
                 status="error",
                 message="Internal server error",
@@ -500,7 +525,10 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     grades_pb2_grpc.add_GradesServiceServicer_to_server(GradesServiceServicer(), server)
     server.add_insecure_port('[::]:50054')
+    print("=" * 70)
     print("gRPC Grades Service starting on port 50054...")
+    print("Using local JWT validation (independent of auth service)")
+    print("=" * 70)
     server.start()
     server.wait_for_termination()
 

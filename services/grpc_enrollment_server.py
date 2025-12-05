@@ -5,22 +5,22 @@ sys.path.append('./generated')
 
 import enrollment_pb2
 import enrollment_pb2_grpc
-import auth_pb2
-import auth_pb2_grpc
 
 import psycopg2
 from psycopg2.extras import DictCursor
 import os
+import jwt
+from datetime import datetime, timezone
 
-# Configuration
 DB_NAME = os.getenv('POSTGRES_DB', 'student_portal_courses')
 DB_USER = os.getenv('POSTGRES_USER', 'postgres')
 DB_PASSWORD = os.getenv('POSTGRES_PASSWORD', '1234')
 DB_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 DB_PORT = os.getenv('POSTGRES_PORT', '5432')
 
-# Auth service gRPC address
-AUTH_GRPC_HOST = os.getenv('AUTH_GRPC_HOST', 'localhost:50051')
+# JWT Configuration (must match auth server)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'super_secret_auth_key_12345')
+JWT_ALGORITHM = "HS256"
 
 def get_db_connection():
     try:
@@ -36,30 +36,52 @@ def get_db_connection():
         print(f"Database connection error: {e}")
         return None
 
-def validate_token_with_auth_service(token):
-    """Call Auth Service via gRPC to validate token"""
-    try:
-        with grpc.insecure_channel(AUTH_GRPC_HOST) as channel:
-            stub = auth_pb2_grpc.AuthServiceStub(channel)
-            response = stub.ValidateToken(auth_pb2.ValidateRequest(token=token))
-            
-            if response.status == "valid":
-                return {
-                    "valid": True,
-                    "user_id": response.user_id,
-                    "role": response.role,
-                    "username": response.username
-                }
-            else:
-                return {
-                    "valid": False,
-                    "message": response.message
-                }
-    except grpc.RpcError as e:
-        print(f"gRPC error calling auth service: {e}")
+def validate_token_locally(token):
+    """Validate JWT token locally without calling auth service"""
+    if not token:
         return {
             "valid": False,
-            "message": "Auth service unavailable"
+            "message": "Token missing"
+        }
+    
+    try:
+        # Decode and verify the JWT token
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        
+        # Check if token has expired (jwt.decode already does this, but being explicit)
+        exp_timestamp = payload.get('exp')
+        if exp_timestamp:
+            exp_datetime = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+            if datetime.now(timezone.utc) > exp_datetime:
+                return {
+                    "valid": False,
+                    "message": "Token expired"
+                }
+        
+        return {
+            "valid": True,
+            "user_id": payload.get('public_id'),
+            "role": payload.get('role'),
+            "username": payload.get('username')
+        }
+    
+    except jwt.ExpiredSignatureError:
+        print(f"✗ Token validation failed: Token expired")
+        return {
+            "valid": False,
+            "message": "Token expired"
+        }
+    except jwt.InvalidTokenError as e:
+        print(f"✗ Token validation failed: Invalid token - {e}")
+        return {
+            "valid": False,
+            "message": "Invalid token"
+        }
+    except Exception as e:
+        print(f"✗ Token validation error: {e}")
+        return {
+            "valid": False,
+            "message": "Token validation error"
         }
 
 class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
@@ -68,8 +90,8 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
         token = request.token
         course_id = request.course_id
 
-        # Validate token with auth service
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation instead of calling auth service
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return enrollment_pb2.EnrollResponse(
@@ -80,14 +102,12 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
         user_id = auth_result['user_id']
         user_role = auth_result['role']
 
-        # Check if user is a student
         if user_role != 'student':
             return enrollment_pb2.EnrollResponse(
                 status="rejected",
                 message=f"Only students can enroll. Your role is '{user_role}'"
             )
 
-        # Get database connection
         conn = get_db_connection()
         if conn is None:
             return enrollment_pb2.EnrollResponse(
@@ -98,7 +118,6 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
         try:
             cur = conn.cursor(cursor_factory=DictCursor)
 
-            # Check course details
             cur.execute("SELECT name, capacity, enrolled, is_open FROM courses WHERE course_id = %s;", (course_id,))
             course = cur.fetchone()
 
@@ -120,7 +139,6 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
                     message=f"Course {course['name']} is full"
                 )
 
-            # Check if already enrolled
             cur.execute("SELECT 1 FROM enrollments WHERE student_public_id = %s AND course_id = %s;", 
                         (user_id, course_id))
             if cur.fetchone() is not None:
@@ -129,13 +147,12 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
                     message=f"You are already enrolled in {course['name']}"
                 )
 
-            # Enroll the student
             cur.execute("UPDATE courses SET enrolled = enrolled + 1 WHERE course_id = %s;", (course_id,))
             cur.execute("INSERT INTO enrollments (student_public_id, course_id) VALUES (%s, %s);", 
                         (user_id, course_id))
 
             conn.commit()
-            print(f"User {user_id} successfully enrolled in {course_id}")
+            print(f"✓ User {user_id} successfully enrolled in {course_id}")
             
             return enrollment_pb2.EnrollResponse(
                 status="success",
@@ -144,7 +161,7 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
 
         except Exception as e:
             conn.rollback()
-            print(f"Enrollment error: {e}")
+            print(f"✗ Enrollment error: {e}")
             return enrollment_pb2.EnrollResponse(
                 status="error",
                 message="An internal error occurred during enrollment"
@@ -156,8 +173,8 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
     def GetStudentEnrollments(self, request, context):
         token = request.token
 
-        # Validate token
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return enrollment_pb2.EnrollmentsResponse(
@@ -196,6 +213,7 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
                     )
                     enrollments.append(enrollment_info)
 
+                print(f"✓ Retrieved {len(enrollments)} enrollments for user {user_id}")
                 return enrollment_pb2.EnrollmentsResponse(
                     status="success",
                     message="Enrollments retrieved",
@@ -203,7 +221,7 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
                 )
 
         except Exception as e:
-            print(f"Error fetching enrollments: {e}")
+            print(f"✗ Error fetching enrollments: {e}")
             return enrollment_pb2.EnrollmentsResponse(
                 status="error",
                 message="Internal server error",
@@ -213,12 +231,12 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
             if conn:
                 conn.close()
 
-    def DropFromCourse(self, request, context): # NEW METHOD
+    def DropFromCourse(self, request, context):
         token = request.token
         course_id = request.course_id
 
-        # Validate token with auth service
-        auth_result = validate_token_with_auth_service(token)
+        # Use local JWT validation
+        auth_result = validate_token_locally(token)
         
         if not auth_result.get('valid'):
             return enrollment_pb2.DropResponse(
@@ -229,14 +247,12 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
         user_id = auth_result['user_id']
         user_role = auth_result['role']
 
-        # Check if user is a student
         if user_role != 'student':
             return enrollment_pb2.DropResponse(
                 status="rejected",
                 message=f"Only students can drop a course. Your role is '{user_role}'"
             )
 
-        # Get database connection
         conn = get_db_connection()
         if conn is None:
             return enrollment_pb2.DropResponse(
@@ -247,7 +263,6 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
         try:
             cur = conn.cursor(cursor_factory=DictCursor)
 
-            # Check if enrolled
             cur.execute("SELECT 1 FROM enrollments WHERE student_public_id = %s AND course_id = %s;", 
                         (user_id, course_id))
             if cur.fetchone() is None:
@@ -256,20 +271,17 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
                     message=f"You are not enrolled in course {course_id}"
                 )
 
-            # Get course name before dropping
             cur.execute("SELECT name FROM courses WHERE course_id = %s;", (course_id,))
             course = cur.fetchone()
             course_name = course['name'] if course else course_id
 
-            # Drop the student
             cur.execute("DELETE FROM enrollments WHERE student_public_id = %s AND course_id = %s;", 
                         (user_id, course_id))
-            # Decrement enrolled count
             cur.execute("UPDATE courses SET enrolled = enrolled - 1 WHERE course_id = %s AND enrolled > 0;", 
                         (course_id,))
 
             conn.commit()
-            print(f"User {user_id} successfully dropped from {course_id}")
+            print(f"✓ User {user_id} successfully dropped from {course_id}")
             
             return enrollment_pb2.DropResponse(
                 status="success",
@@ -278,7 +290,7 @@ class EnrollmentServiceServicer(enrollment_pb2_grpc.EnrollmentServiceServicer):
 
         except Exception as e:
             conn.rollback()
-            print(f"Drop error: {e}")
+            print(f"✗ Drop error: {e}")
             return enrollment_pb2.DropResponse(
                 status="error",
                 message="An internal error occurred during drop process"
@@ -291,7 +303,10 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     enrollment_pb2_grpc.add_EnrollmentServiceServicer_to_server(EnrollmentServiceServicer(), server)
     server.add_insecure_port('[::]:50053')
+    print("=" * 70)
     print("gRPC Enrollment Service starting on port 50053...")
+    print("Using local JWT validation (independent of auth service)")
+    print("=" * 70)
     server.start()
     server.wait_for_termination()
 

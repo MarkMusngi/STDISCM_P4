@@ -146,12 +146,10 @@
     </div>
 
     <script>
-        // Configuration
         const API_BASE_URL = 'http://localhost:5001/api/v1';
         let authToken = '';
         let currentUsername = '';
 
-        // Login handling
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -169,7 +167,6 @@
                 const data = await response.json();
                 
                 if (response.ok && data.status === 'success') {
-                    // Check if user is faculty
                     if (data.role !== 'faculty') {
                         showLoginMessage('Access denied. This portal is for faculty only.', 'error');
                         return;
@@ -202,7 +199,6 @@
             messageDiv.classList.remove('hidden');
         }
 
-        // Load all students
         async function loadStudents() {
             try {
                 const response = await fetch(`${API_BASE_URL}/faculty/students`, {
@@ -230,7 +226,6 @@
             }
         }
 
-        // When student is selected, load their enrolled courses
         document.getElementById('studentSelect').addEventListener('change', async (e) => {
             const studentId = e.target.value;
             const courseSelect = document.getElementById('courseSelect');
@@ -241,7 +236,6 @@
                 return;
             }
             
-            // Show loading state
             courseSelect.disabled = true;
             courseSelect.innerHTML = '<option value="">-- Loading enrolled courses... --</option>';
             
@@ -277,7 +271,6 @@
             }
         });
 
-        // Handle grade submission
         document.getElementById('gradeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -294,7 +287,6 @@
                 return;
             }
             
-            // Disable submit button during upload
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Uploading via gRPC...';
@@ -323,13 +315,11 @@
                         'success'
                     );
                     
-                    // Reset form
                     document.getElementById('gradeForm').reset();
                     document.getElementById('courseSelect').disabled = true;
                     document.getElementById('courseSelect').innerHTML = '<option value="">-- Select a student first --</option>';
                     document.getElementById('semester').value = 'Fall 2024';
                     
-                    // Reload students to refresh
                     loadStudents();
                 } else {
                     showMessage('Failed to upload grade: ' + data.message, 'error');
@@ -338,13 +328,11 @@
                 console.error('Error uploading grade:', error);
                 showMessage('Failed to upload grade. Faculty Grades service (Port 50055) may be unavailable.', 'error');
             } finally {
-                // Re-enable submit button
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Upload Grade via gRPC';
             }
         });
 
-        // Show message helper
         function showMessage(text, type) {
             const messageDiv = document.getElementById('message');
             
@@ -359,15 +347,14 @@
             messageDiv.textContent = text;
             messageDiv.classList.remove('hidden');
             
-            // Auto-hide after 5 seconds for success messages
+
             if (type === 'success') {
                 setTimeout(() => {
                     messageDiv.classList.add('hidden');
                 }, 5000);
             }
         }
-
-        // Logout function
+        
         function logout() {
             if (confirm('Are you sure you want to logout?')) {
                 authToken = '';

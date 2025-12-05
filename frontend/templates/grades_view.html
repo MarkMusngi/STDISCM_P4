@@ -108,15 +108,7 @@
 </div>
 
 <script>
-    const gradesServiceUrl = 'http://localhost:5001/api/v1/grades/enrolled-with-grades';
-
-    function getToken() {
-        return localStorage.getItem('user_jwt_token');
-    }
-
-    function getRole() {
-        return localStorage.getItem('user_role');
-    }
+    const gradesServiceUrl = '/api/proxy/grades/enrolled-with-grades';
 
     function showStatus(message, type = 'info') {
         const el = document.getElementById('statusMessage');
@@ -157,28 +149,6 @@
     }
 
     async function fetchCoursesAndGrades() {
-        const token = getToken();
-        const role = getRole();
-
-        // Check authentication
-        if (!token) {
-            showStatus('Please login to view your grades', 'error');
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 2000);
-            return;
-        }
-
-        // Check if user is a student
-        if (role !== 'student') {
-            document.getElementById('loadingState').classList.add('hidden');
-            showStatus(`Only students can view grades. Your role is "${role}".`, 'error');
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 3000);
-            return;
-        }
-
         const loadingEl = document.getElementById('loadingState');
         const errorEl = document.getElementById('errorState');
         const coursesContainer = document.getElementById('coursesContainer');
@@ -188,7 +158,6 @@
             const response = await fetch(gradesServiceUrl, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -196,6 +165,12 @@
             loadingEl.classList.add('hidden');
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    showStatus('Session expired. Redirecting to login...', 'error');
+                    setTimeout(() => { window.location.href = '/login'; }, 1500);
+                    return;
+                }
+                
                 errorEl.classList.remove('hidden');
                 const data = await response.json().catch(() => ({ message: response.statusText }));
                 showStatus(`Failed to load courses: ${data.message || 'Unknown error'}`, 'error');
@@ -205,11 +180,9 @@
             const data = await response.json();
 
             if (data.status === 'success') {
-                // Show user info
                 document.getElementById('displayUsername').textContent = data.student_name || 'Student';
                 userInfo.classList.remove('hidden');
 
-                // Show courses container
                 coursesContainer.classList.remove('hidden');
 
                 if (data.courses && data.courses.length > 0) {
@@ -246,7 +219,6 @@
 
                     document.getElementById('emptyState').classList.add('hidden');
                 } else {
-                    // No enrollments
                     document.getElementById('emptyState').classList.remove('hidden');
                     document.getElementById('coursesTableBody').innerHTML = '';
                 }
@@ -263,7 +235,6 @@
         }
     }
 
-    // Load courses and grades on page load
     window.addEventListener('DOMContentLoaded', () => {
         fetchCoursesAndGrades();
     });
